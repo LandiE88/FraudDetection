@@ -1,0 +1,39 @@
+@FraudDetection.Api_HostAddress = http://localhost:5124
+
+### Ingest a clean transaction
+POST {{FraudDetection.Api_HostAddress}}/api/transactions
+Content-Type: application/json
+
+{
+  "accountId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "category": "Purchase",
+  "amount": 42.50,
+  "currency": "ZAR",
+  "merchantName": "Corner Store",
+  "occurredAtUtc": "2026-01-01T12:00:00Z"
+}
+
+### Ingest a transaction that should trigger the LargeAmount rule
+POST {{FraudDetection.Api_HostAddress}}/api/transactions
+Content-Type: application/json
+
+{
+  "accountId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "category": "Purchase",
+  "amount": 25000,
+  "currency": "ZAR",
+  "merchantName": "Electronics Megastore",
+  "occurredAtUtc": "2026-01-01T12:00:00Z"
+}
+
+### List all transactions
+GET {{FraudDetection.Api_HostAddress}}/api/transactions
+Accept: application/json
+
+### List only flagged transactions
+GET {{FraudDetection.Api_HostAddress}}/api/transactions?onlyFlagged=true
+Accept: application/json
+
+### Health check
+GET {{FraudDetection.Api_HostAddress}}/health
+Accept: application/json

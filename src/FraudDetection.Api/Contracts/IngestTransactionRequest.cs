@@ -1,0 +1,12 @@
+using FraudDetection.Domain.Transactions;
+
+namespace FraudDetection.Api.Contracts;
+
+/// <summary>Request body for POST /api/transactions.</summary>
+public sealed record IngestTransactionRequest(
+    Guid AccountId,
+    TransactionCategory Category,
+    decimal Amount,
+    string Currency,
+    string MerchantName,
+    DateTime OccurredAtUtc);
