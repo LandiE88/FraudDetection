@@ -21,11 +21,6 @@ public sealed class AccountHolderRepository : IAccountHolderRepository
     {
         var queryable = _dbContext.AccountHolders.AsQueryable();
 
-        if (query.AccountId.HasValue)
-        {
-            queryable = queryable.Where(a => a.AccountId == query.AccountId.Value);
-        }
-
         // Name/id/email fields are matched case-insensitively and as a substring —
         // this is a "search", not an exact filter. Note that a value containing SQL
         // LIKE wildcards (% or _) is taken literally as a wildcard rather than escaped.

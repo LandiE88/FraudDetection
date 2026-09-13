@@ -21,7 +21,7 @@ public class AccountHolderCrudTests : IClassFixture<CustomWebApplicationFactory>
     public async Task Post_WithValidRequest_Returns201AndCanBeFetchedById()
     {
         var request = new CreateAccountHolderRequest(
-            Guid.NewGuid(), "Jane", "Doe", "A1234567", "jane.doe@example.com", new DateOnly(1990, 5, 20));
+            "Jane", "Doe", "A1234567", "jane.doe@example.com", new DateOnly(1990, 5, 20));
 
         var response = await _client.PostAsJsonAsync("/api/account-holders", request);
 
@@ -29,8 +29,7 @@ public class AccountHolderCrudTests : IClassFixture<CustomWebApplicationFactory>
         response.Headers.Location.Should().NotBeNull();
 
         var created = await response.Content.ReadFromJsonAsync<AccountHolderResponse>();
-        created!.AccountId.Should().Be(request.AccountId);
-        created.Email.Should().Be("jane.doe@example.com");
+        created!.Email.Should().Be("jane.doe@example.com");
 
         var getResponse = await _client.GetAsync($"/api/account-holders/{created.Id}");
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -42,7 +41,7 @@ public class AccountHolderCrudTests : IClassFixture<CustomWebApplicationFactory>
     public async Task Post_WithInvalidEmail_Returns400()
     {
         var request = new CreateAccountHolderRequest(
-            Guid.NewGuid(), "Jane", "Doe", "A1234567", "not-an-email", new DateOnly(1990, 5, 20));
+            "Jane", "Doe", "A1234567", "not-an-email", new DateOnly(1990, 5, 20));
 
         var response = await _client.PostAsJsonAsync("/api/account-holders", request);
 
@@ -55,7 +54,7 @@ public class AccountHolderCrudTests : IClassFixture<CustomWebApplicationFactory>
     public async Task Put_WithValidRequest_UpdatesTheHolder()
     {
         var createRequest = new CreateAccountHolderRequest(
-            Guid.NewGuid(), "Jane", "Doe", "A1234567", "jane.doe@example.com", new DateOnly(1990, 5, 20));
+            "Jane", "Doe", "A1234567", "jane.doe@example.com", new DateOnly(1990, 5, 20));
         var createResponse = await _client.PostAsJsonAsync("/api/account-holders", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<AccountHolderResponse>();
 
@@ -69,7 +68,6 @@ public class AccountHolderCrudTests : IClassFixture<CustomWebApplicationFactory>
         updated!.FirstName.Should().Be("Janet");
         updated.LastName.Should().Be("Doe-Smith");
         updated.Email.Should().Be("janet.doe-smith@example.com");
-        updated.AccountId.Should().Be(created.AccountId);
 
         var getResponse = await _client.GetAsync($"/api/account-holders/{created.Id}");
         var fetched = await getResponse.Content.ReadFromJsonAsync<AccountHolderResponse>();

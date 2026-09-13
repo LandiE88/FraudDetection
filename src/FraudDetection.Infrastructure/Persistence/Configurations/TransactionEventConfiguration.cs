@@ -21,9 +21,9 @@ public sealed class TransactionEventConfiguration : IEntityTypeConfiguration<Tra
             .HasColumnType("UUID")
             .IsRequired();
 
-        // Unlike AccountId (a logical link — see AccountHolder's remarks for why it
-        // can't be a real FK), this one can be and is: AccountHolder.Id is a genuine
-        // primary key. Nullable because the holder isn't always known at ingestion.
+        // The only relation between transaction_events and account_holders: a real,
+        // database-enforced FK to AccountHolder's primary key. Nullable because the
+        // holder isn't always known at ingestion.
         builder.Property(t => t.AccountHolderId)
             .HasColumnType("UUID");
 

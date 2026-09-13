@@ -8,6 +8,7 @@ namespace FraudDetection.Domain.Transactions;
 public sealed class TransactionEventQuery
 {
     public Guid? AccountId { get; init; }
+    public Guid? AccountHolderId { get; init; }
     public TransactionCategory? Category { get; init; }
     public bool? OnlyFlagged { get; init; }
     public DateTime? FromUtc { get; init; }

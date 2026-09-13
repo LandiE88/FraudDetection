@@ -24,12 +24,6 @@ public sealed class AccountHolderConfiguration : IEntityTypeConfiguration<Accoun
             .HasColumnType("UUID")
             .ValueGeneratedNever();
 
-        // Logically, not physically, linked to TransactionEvent.AccountId — see the
-        // remarks on AccountHolder itself for why a real foreign key isn't possible.
-        builder.Property(a => a.AccountId)
-            .HasColumnType("UUID")
-            .IsRequired();
-
         builder.Property(a => a.FirstName)
             .HasMaxLength(AccountHolder.NameMaxLength)
             .HasColumnType($"VARCHAR({AccountHolder.NameMaxLength})")
@@ -71,7 +65,6 @@ public sealed class AccountHolderConfiguration : IEntityTypeConfiguration<Accoun
 
         builder.Ignore(a => a.DomainEvents);
 
-        builder.HasIndex(a => a.AccountId);
         builder.HasIndex(a => a.IdPassport);
     }
 }

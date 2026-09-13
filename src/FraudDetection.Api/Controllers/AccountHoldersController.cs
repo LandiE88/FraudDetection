@@ -44,7 +44,7 @@ public sealed class AccountHoldersController : ControllerBase
         [FromBody] CreateAccountHolderRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateAccountHolderCommand(
-            request.AccountId, request.FirstName, request.LastName, request.IdPassport, request.Email, request.DateOfBirth);
+            request.FirstName, request.LastName, request.IdPassport, request.Email, request.DateOfBirth);
 
         var result = await _createHandler.Handle(command, cancellationToken);
 
@@ -89,12 +89,12 @@ public sealed class AccountHoldersController : ControllerBase
     }
 
     /// <summary>
-    /// Searches account holders by any combination of account id, name, id/passport
-    /// number, email, and birth year/month — at least one criterion is required.
-    /// Name, id/passport and email match case-insensitively as a substring; account
-    /// id, birth year and birth month match exactly. Pair this with
-    /// <c>GET /api/transactions?accountId=...</c> to find all transactions for a
-    /// given holder's account(s).
+    /// Searches account holders by any combination of name, id/passport number,
+    /// email, and birth year/month — at least one criterion is required. Name,
+    /// id/passport and email match case-insensitively as a substring; birth year and
+    /// birth month match exactly. Pair this with
+    /// <c>GET /api/transactions?accountHolderId=...</c> to find all transactions for
+    /// a given holder.
     /// </summary>
     /// <response code="200">A (possibly empty) page of matching account holders.</response>
     /// <response code="400">No search criterion was provided, or a parameter failed validation.</response>
@@ -102,7 +102,6 @@ public sealed class AccountHoldersController : ControllerBase
     [ProducesResponseType(typeof(PagedResult<AccountHolderResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PagedResult<AccountHolderResponse>>> Search(
-        [FromQuery] Guid? accountId,
         [FromQuery] string? firstName,
         [FromQuery] string? lastName,
         [FromQuery] string? idPassport,
@@ -114,7 +113,7 @@ public sealed class AccountHoldersController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var query = new SearchAccountHoldersQuery(
-            accountId, firstName, lastName, idPassport, email, birthYear, birthMonth, page, pageSize);
+            firstName, lastName, idPassport, email, birthYear, birthMonth, page, pageSize);
 
         var result = await _searchHandler.Handle(query, cancellationToken);
         return Ok(result);

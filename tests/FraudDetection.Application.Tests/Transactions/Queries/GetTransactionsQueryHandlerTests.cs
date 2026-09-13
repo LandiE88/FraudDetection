@@ -27,7 +27,7 @@ public class GetTransactionsQueryHandlerTests
         var handler = new GetTransactionsQueryHandler(_repository.Object, new GetTransactionsQueryValidator());
 
         var result = await handler.Handle(
-            new GetTransactionsQuery(null, null, null, null, null, Page: 2, PageSize: 10),
+            new GetTransactionsQuery(null, null, null, null, null, null, Page: 2, PageSize: 10),
             CancellationToken.None);
 
         result.Items.Should().ContainSingle(t => t.Id == transaction.Id);
@@ -41,6 +41,7 @@ public class GetTransactionsQueryHandlerTests
     public async Task Handle_PassesFiltersThroughToTheRepositoryQuery()
     {
         var accountId = Guid.NewGuid();
+        var accountHolderId = Guid.NewGuid();
 
         _repository.Setup(r => r.SearchAsync(It.IsAny<TransactionEventQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedList<TransactionEvent>(Array.Empty<TransactionEvent>(), 1, 20, 0));
@@ -48,12 +49,13 @@ public class GetTransactionsQueryHandlerTests
         var handler = new GetTransactionsQueryHandler(_repository.Object, new GetTransactionsQueryValidator());
 
         await handler.Handle(
-            new GetTransactionsQuery(accountId, TransactionCategory.Withdrawal, true, null, null),
+            new GetTransactionsQuery(accountId, accountHolderId, TransactionCategory.Withdrawal, true, null, null),
             CancellationToken.None);
 
         _repository.Verify(r => r.SearchAsync(
             It.Is<TransactionEventQuery>(q =>
                 q.AccountId == accountId &&
+                q.AccountHolderId == accountHolderId &&
                 q.Category == TransactionCategory.Withdrawal &&
                 q.OnlyFlagged == true),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -65,7 +67,7 @@ public class GetTransactionsQueryHandlerTests
         var handler = new GetTransactionsQueryHandler(_repository.Object, new GetTransactionsQueryValidator());
 
         var act = async () => await handler.Handle(
-            new GetTransactionsQuery(null, null, null, null, null, Page: 1, PageSize: 500),
+            new GetTransactionsQuery(null, null, null, null, null, null, Page: 1, PageSize: 500),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();

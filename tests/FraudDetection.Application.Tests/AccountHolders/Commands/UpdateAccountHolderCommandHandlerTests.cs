@@ -23,7 +23,7 @@ public class UpdateAccountHolderCommandHandlerTests
     }
 
     private static AccountHolder CreateExistingHolder() => AccountHolder.Create(
-        Guid.NewGuid(), "Jane", "Doe", "A1234567", EmailAddress.Create("jane.doe@example.com"),
+        "Jane", "Doe", "A1234567", EmailAddress.Create("jane.doe@example.com"),
         new DateOnly(1990, 5, 20), DateOnly.FromDateTime(FixedNow));
 
     [Fact]
@@ -41,7 +41,6 @@ public class UpdateAccountHolderCommandHandlerTests
         response.FirstName.Should().Be("John");
         response.LastName.Should().Be("Smith");
         response.Email.Should().Be("john.smith@example.com");
-        response.AccountId.Should().Be(holder.AccountId); // unchanged
         _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 

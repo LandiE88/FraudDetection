@@ -1,11 +1,10 @@
 namespace FraudDetection.Application.AccountHolders.Commands.CreateAccountHolder;
 
 /// <summary>
-/// Registers a person against an account. Handled by
+/// Registers a new account holder. Handled by
 /// <see cref="CreateAccountHolderCommandHandler"/>.
 /// </summary>
 public sealed record CreateAccountHolderCommand(
-    Guid AccountId,
     string FirstName,
     string LastName,
     string IdPassport,

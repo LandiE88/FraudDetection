@@ -29,6 +29,7 @@ public sealed class GetTransactionsQueryHandler
         var query = new TransactionEventQuery
         {
             AccountId = request.AccountId,
+            AccountHolderId = request.AccountHolderId,
             Category = request.Category,
             OnlyFlagged = request.OnlyFlagged,
             FromUtc = request.FromUtc,

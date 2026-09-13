@@ -15,7 +15,7 @@ public class GetAccountHolderByIdQueryHandlerTests
     public async Task Handle_WhenAccountHolderExists_ReturnsMappedResponse()
     {
         var holder = AccountHolder.Create(
-            Guid.NewGuid(), "Jane", "Doe", "A1234567", EmailAddress.Create("jane.doe@example.com"),
+            "Jane", "Doe", "A1234567", EmailAddress.Create("jane.doe@example.com"),
             new DateOnly(1990, 5, 20), new DateOnly(2026, 1, 1));
 
         _repository.Setup(r => r.GetByIdAsync(holder.Id, It.IsAny<CancellationToken>())).ReturnsAsync(holder);

@@ -23,23 +23,9 @@ public class AccountHoldersControllerTests : IClassFixture<CustomWebApplicationF
     }
 
     [Fact]
-    public async Task Get_ByAccountId_ReturnsTheMatchingHolder()
-    {
-        var accountId = Guid.NewGuid();
-        var holder = await SeedHolderAsync(accountId, "Jane", "Doe", "A1000001", "jane.doe@example.com", new DateOnly(1985, 3, 12));
-
-        var response = await _client.GetAsync($"/api/account-holders?accountId={accountId}");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var page = await response.Content.ReadFromJsonAsync<PagedResult<AccountHolderResponse>>();
-        page!.Items.Should().ContainSingle(a => a.Id == holder.Id);
-    }
-
-    [Fact]
     public async Task Get_ByPartialLastNameCaseInsensitive_ReturnsMatches()
     {
-        var accountId = Guid.NewGuid();
-        await SeedHolderAsync(accountId, "John", "Smithson", "B2000002", "john.smithson@example.com", new DateOnly(1978, 11, 2));
+        await SeedHolderAsync("John", "Smithson", "B2000002", "john.smithson@example.com", new DateOnly(1978, 11, 2));
 
         var response = await _client.GetAsync("/api/account-holders?lastName=smith");
 
@@ -51,16 +37,13 @@ public class AccountHoldersControllerTests : IClassFixture<CustomWebApplicationF
     [Fact]
     public async Task Get_ByBirthYearAndMonth_ReturnsOnlyMatchingHolders()
     {
-        var matchingAccountId = Guid.NewGuid();
-        var otherAccountId = Guid.NewGuid();
-
-        await SeedHolderAsync(matchingAccountId, "Amara", "Okafor", "C3000003", "amara.okafor@example.com", new DateOnly(1992, 7, 4));
-        await SeedHolderAsync(otherAccountId, "Amara", "Ngozi", "C3000004", "amara.ngozi@example.com", new DateOnly(1992, 9, 4));
+        var matchingHolder = await SeedHolderAsync("Amara", "Okafor", "C3000003", "amara.okafor@example.com", new DateOnly(1992, 7, 4));
+        await SeedHolderAsync("Amara", "Ngozi", "C3000004", "amara.ngozi@example.com", new DateOnly(1992, 9, 4));
 
         var response = await _client.GetAsync("/api/account-holders?firstName=Amara&birthYear=1992&birthMonth=7");
 
         var page = await response.Content.ReadFromJsonAsync<PagedResult<AccountHolderResponse>>();
-        page!.Items.Should().ContainSingle(a => a.AccountId == matchingAccountId);
+        page!.Items.Should().ContainSingle(a => a.Id == matchingHolder.Id);
     }
 
     [Fact]
@@ -77,35 +60,33 @@ public class AccountHoldersControllerTests : IClassFixture<CustomWebApplicationF
     [Fact]
     public async Task Get_ByIdPassport_ReturnsTheMatchingHolder()
     {
-        var accountId = Guid.NewGuid();
-        await SeedHolderAsync(accountId, "Liam", "Nkosi", "D4000004-UNIQUE", "liam.nkosi@example.com", new DateOnly(2000, 1, 20));
+        var holder = await SeedHolderAsync("Liam", "Nkosi", "D4000004-UNIQUE", "liam.nkosi@example.com", new DateOnly(2000, 1, 20));
 
         var response = await _client.GetAsync("/api/account-holders?idPassport=D4000004-UNIQUE");
 
         var page = await response.Content.ReadFromJsonAsync<PagedResult<AccountHolderResponse>>();
-        page!.Items.Should().ContainSingle(a => a.AccountId == accountId);
+        page!.Items.Should().ContainSingle(a => a.Id == holder.Id);
     }
 
     [Fact]
     public async Task Get_ByEmailFragment_ReturnsTheMatchingHolder()
     {
-        var accountId = Guid.NewGuid();
-        await SeedHolderAsync(accountId, "Priya", "Naidoo", "E5000005", "priya.unique.tag@example.com", new DateOnly(1995, 4, 9));
+        var holder = await SeedHolderAsync("Priya", "Naidoo", "E5000005", "priya.unique.tag@example.com", new DateOnly(1995, 4, 9));
 
         var response = await _client.GetAsync("/api/account-holders?email=unique.tag");
 
         var page = await response.Content.ReadFromJsonAsync<PagedResult<AccountHolderResponse>>();
-        page!.Items.Should().ContainSingle(a => a.AccountId == accountId);
+        page!.Items.Should().ContainSingle(a => a.Id == holder.Id);
     }
 
     private async Task<AccountHolder> SeedHolderAsync(
-        Guid accountId, string firstName, string lastName, string idPassport, string email, DateOnly dateOfBirth)
+        string firstName, string lastName, string idPassport, string email, DateOnly dateOfBirth)
     {
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<FraudDetectionDbContext>();
 
         var holder = AccountHolder.Create(
-            accountId, firstName, lastName, idPassport, EmailAddress.Create(email), dateOfBirth,
+            firstName, lastName, idPassport, EmailAddress.Create(email), dateOfBirth,
             DateOnly.FromDateTime(DateTime.UtcNow));
 
         dbContext.AccountHolders.Add(holder);

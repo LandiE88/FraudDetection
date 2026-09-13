@@ -7,8 +7,6 @@ public sealed class CreateAccountHolderCommandValidator : AbstractValidator<Crea
 {
     public CreateAccountHolderCommandValidator()
     {
-        RuleFor(x => x.AccountId).NotEmpty();
-
         RuleFor(x => x.FirstName).NotEmpty().MaximumLength(AccountHolder.NameMaxLength);
         RuleFor(x => x.LastName).NotEmpty().MaximumLength(AccountHolder.NameMaxLength);
         RuleFor(x => x.IdPassport).NotEmpty().MaximumLength(AccountHolder.IdPassportMaxLength);

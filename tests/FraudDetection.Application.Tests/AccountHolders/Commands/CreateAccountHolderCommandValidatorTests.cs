@@ -9,20 +9,12 @@ public class CreateAccountHolderCommandValidatorTests
     private readonly CreateAccountHolderCommandValidator _validator = new();
 
     private static CreateAccountHolderCommand ValidCommand() => new(
-        Guid.NewGuid(), "Jane", "Doe", "A1234567", "jane.doe@example.com", new DateOnly(1990, 5, 20));
+        "Jane", "Doe", "A1234567", "jane.doe@example.com", new DateOnly(1990, 5, 20));
 
     [Fact]
     public void Validate_WithValidCommand_HasNoErrors()
     {
         _validator.TestValidate(ValidCommand()).ShouldNotHaveAnyValidationErrors();
-    }
-
-    [Fact]
-    public void Validate_WithEmptyAccountId_HasError()
-    {
-        var command = ValidCommand() with { AccountId = Guid.Empty };
-
-        _validator.TestValidate(command).ShouldHaveValidationErrorFor(c => c.AccountId);
     }
 
     [Theory]

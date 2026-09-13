@@ -119,11 +119,10 @@ public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFac
     [Fact]
     public async Task Post_WithKnownAccountHolderId_LinksTheTransactionToTheHolder()
     {
-        var accountId = Guid.NewGuid();
-        var holder = await SeedAccountHolderAsync(accountId);
+        var holder = await SeedAccountHolderAsync();
 
         var request = new IngestTransactionRequest(
-            accountId, TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", DateTime.UtcNow, holder.Id);
+            Guid.NewGuid(), TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", DateTime.UtcNow, holder.Id);
 
         var response = await _client.PostAsJsonAsync("/api/transactions", request);
 
@@ -143,13 +142,35 @@ public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFac
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    private async Task<AccountHolder> SeedAccountHolderAsync(Guid accountId)
+    [Fact]
+    public async Task Get_FilteredByAccountHolderId_ReturnsOnlyThatHoldersTransactions()
+    {
+        var holder = await SeedAccountHolderAsync();
+        var otherHolder = await SeedAccountHolderAsync();
+
+        await _client.PostAsJsonAsync("/api/transactions", new IngestTransactionRequest(
+            Guid.NewGuid(), TransactionCategory.Purchase, 50m, "ZAR", "Holder's Merchant", DateTime.UtcNow, holder.Id));
+
+        await _client.PostAsJsonAsync("/api/transactions", new IngestTransactionRequest(
+            Guid.NewGuid(), TransactionCategory.Purchase, 60m, "ZAR", "Other Holder's Merchant", DateTime.UtcNow, otherHolder.Id));
+
+        var response = await _client.GetAsync($"/api/transactions?accountHolderId={holder.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var page = await response.Content.ReadFromJsonAsync<PagedResult<TransactionResponse>>();
+        page.Should().NotBeNull();
+        page!.Items.Should().ContainSingle();
+        page.Items.Single().MerchantName.Should().Be("Holder's Merchant");
+    }
+
+    private async Task<AccountHolder> SeedAccountHolderAsync()
     {
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<FraudDetectionDbContext>();
 
         var holder = AccountHolder.Create(
-            accountId, "Jane", "Doe", "A1234567", EmailAddress.Create("jane.doe@example.com"),
+            "Jane", "Doe", "A1234567", EmailAddress.Create($"{Guid.NewGuid():N}@example.com"),
             new DateOnly(1990, 5, 20), DateOnly.FromDateTime(DateTime.UtcNow));
 
         dbContext.AccountHolders.Add(holder);

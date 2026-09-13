@@ -37,7 +37,6 @@ public sealed class CreateAccountHolderCommandHandler : ICommandHandler<CreateAc
         var today = DateOnly.FromDateTime(_clock.UtcNow);
 
         var accountHolder = AccountHolder.Create(
-            request.AccountId,
             request.FirstName,
             request.LastName,
             request.IdPassport,

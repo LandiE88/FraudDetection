@@ -26,13 +26,11 @@ public class CreateAccountHolderCommandHandlerTests
     public async Task Handle_WithValidCommand_PersistsAndReturnsTheAccountHolder()
     {
         var handler = CreateHandler();
-        var accountId = Guid.NewGuid();
         var command = new CreateAccountHolderCommand(
-            accountId, "Jane", "Doe", "A1234567", "jane.doe@example.com", new DateOnly(1990, 5, 20));
+            "Jane", "Doe", "A1234567", "jane.doe@example.com", new DateOnly(1990, 5, 20));
 
         var response = await handler.Handle(command, CancellationToken.None);
 
-        response.AccountId.Should().Be(accountId);
         response.FirstName.Should().Be("Jane");
         response.Email.Should().Be("jane.doe@example.com");
         _repository.Verify(r => r.Add(It.Is<AccountHolder>(a => a.Id == response.Id)), Times.Once);
@@ -44,7 +42,7 @@ public class CreateAccountHolderCommandHandlerTests
     {
         var handler = CreateHandler();
         var command = new CreateAccountHolderCommand(
-            Guid.NewGuid(), "Jane", "Doe", "A1234567", "not-an-email", new DateOnly(1990, 5, 20));
+            "Jane", "Doe", "A1234567", "not-an-email", new DateOnly(1990, 5, 20));
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
 

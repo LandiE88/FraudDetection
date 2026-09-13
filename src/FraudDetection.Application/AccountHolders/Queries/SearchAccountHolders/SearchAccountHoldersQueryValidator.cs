@@ -32,7 +32,6 @@ public sealed class SearchAccountHoldersQueryValidator : AbstractValidator<Searc
     }
 
     private static bool HaveAtLeastOneCriterion(SearchAccountHoldersQuery query) =>
-        query.AccountId.HasValue ||
         !string.IsNullOrWhiteSpace(query.FirstName) ||
         !string.IsNullOrWhiteSpace(query.LastName) ||
         !string.IsNullOrWhiteSpace(query.IdPassport) ||

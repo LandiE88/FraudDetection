@@ -29,7 +29,6 @@ public sealed class SearchAccountHoldersQueryHandler
 
         var query = new AccountHolderQuery
         {
-            AccountId = request.AccountId,
             FirstName = request.FirstName,
             LastName = request.LastName,
             IdPassport = request.IdPassport,

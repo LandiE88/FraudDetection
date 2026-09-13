@@ -214,8 +214,10 @@ Returns `200 OK` with the same shape as above, or `404 Not Found`.
 
 ### `GET /api/transactions` — search / list transactions
 
-Query parameters (all optional): `accountId`, `category`, `onlyFlagged` (`true`/`false`),
-`fromUtc`, `toUtc`, `page` (default 1), `pageSize` (default 20, max 100).
+Query parameters (all optional): `accountId`, `accountHolderId` (the real foreign key
+to `account_holders.Id` — use this to find all of a given holder's transactions),
+`category`, `onlyFlagged` (`true`/`false`), `fromUtc`, `toUtc`, `page` (default 1),
+`pageSize` (default 20, max 100).
 
 ```bash
 curl "http://localhost:8080/api/transactions?onlyFlagged=true&page=1&pageSize=20"
@@ -237,7 +239,6 @@ curl "http://localhost:8080/api/transactions?onlyFlagged=true&page=1&pageSize=20
 curl -X POST http://localhost:8080/api/account-holders \
   -H "Content-Type: application/json" \
   -d '{
-        "accountId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
         "firstName": "Jane",
         "lastName": "Doe",
         "idPassport": "A1234567",
@@ -270,21 +271,19 @@ curl -X PUT http://localhost:8080/api/account-holders/b7e2... \
       }'
 ```
 
-Replaces every mutable field (name, id/passport, email, date of birth). **Does not
-accept `accountId`** — which (holder, account) row this is isn't something you edit in
-place; register a new holder instead if one genuinely needs linking to a different
-account. Returns `200 OK` with the updated holder, or `404 Not Found` if the id
-doesn't exist.
+Replaces every mutable field (name, id/passport, email, date of birth). Returns
+`200 OK` with the updated holder, or `404 Not Found` if the id doesn't exist.
 
 ### `GET /api/account-holders` — search account holders
 
-Finds the person(s) behind an account — pair it with `GET /api/transactions?accountId=...`
-to pull all transactions for a holder's account(s). **At least one criterion is
-required** (an unfiltered dump of PII isn't something this endpoint allows).
+Finds people by name, id/passport, email or date of birth — pair it with
+`GET /api/transactions?accountHolderId=...` to pull all transactions linked to a given
+holder. **At least one criterion is required** (an unfiltered dump of PII isn't
+something this endpoint allows).
 
-Query parameters (all optional, but at least one required): `accountId` (exact),
-`firstName`, `lastName`, `idPassport`, `email` (all case-insensitive substring
-matches), `birthYear`, `birthMonth` (exact, combinable), `page`, `pageSize`.
+Query parameters (all optional, but at least one required): `firstName`, `lastName`,
+`idPassport`, `email` (all case-insensitive substring matches), `birthYear`,
+`birthMonth` (exact, combinable), `page`, `pageSize`.
 
 ```bash
 curl "http://localhost:8080/api/account-holders?lastName=doe&birthYear=1990"
@@ -295,7 +294,6 @@ curl "http://localhost:8080/api/account-holders?lastName=doe&birthYear=1990"
   "items": [
     {
       "id": "b7e2...",
-      "accountId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
       "firstName": "Jane",
       "lastName": "Doe",
       "idPassport": "A1234567",
@@ -310,14 +308,11 @@ curl "http://localhost:8080/api/account-holders?lastName=doe&birthYear=1990"
 }
 ```
 
-An account holder can have more than one account, and an account can have more than
-one holder (a joint account) — each (holder, account) pairing is its own row, so
-searching by name/passport/email can return several rows for the same person, one per
-account. **`accountId` on this table is a logical link to `TransactionEvent.AccountId`,
-not a database foreign key** — an account isn't a first-class row anywhere in this
-system (it's just a grouping id shared by many transaction events), and a foreign key
-must target a unique/primary key, which `transaction_events.AccountId` isn't. Both
-tables index `AccountId` so filtering/joining on it stays cheap regardless.
+An account holder is just a person — nothing on this table ties it to an account. The
+only relationship between account holders and transactions is
+`transaction_events.AccountHolderId`, a real foreign key to `account_holders.Id` (see
+[Design notes](#design-notes)); link a transaction to a holder at ingestion time via
+`accountHolderId`, then look it up again the same way.
 
 ### `GET /health`
 
@@ -392,22 +387,25 @@ as part of building the image (see [Running with Docker](#running-with-docker-re
   `holder.Email.Value` in an `ILIKE` search) — that's a well-known EF Core limitation.
   An owned type's own properties translate normally, which is also why `Money` is
   mapped the same way on `TransactionEvent`.
-- **`TransactionEvent` links to `AccountHolder` two different ways, deliberately.**
-  `AccountId` is shared by both tables but isn't unique on either side, so it can only
-  ever be a logical link (see `AccountHolder`'s remarks). `AccountHolderId` is a
-  genuine, nullable foreign key to `AccountHolder.Id` (a real primary key), enforced
-  by Postgres and checked by `IngestTransactionCommandHandler` before a transaction is
-  created — an unknown `accountHolderId` fails fast with `404`, not a raw FK
-  violation. It's nullable, not required — the holder behind an account isn't always
-  known (or worth registering) at the moment a transaction is ingested, so a
-  transaction is still valid without one.
-- **`AccountHolder.Update` doesn't touch `AccountId`.** It only ever replaces the
-  mutable personal fields (name, id/passport, email, date of birth) — `AccountId`
-  defines which (holder, account) row this is, not something a `PUT` corrects in
-  place. If a holder genuinely needs linking to a different account, register a new
-  one instead. `Create` and `Update` share the same private validation
-  helpers (`RequireName`, `RequireIdPassport`, `RequireNotFutureDateOfBirth`) so the
-  two can never drift apart on what counts as valid.
+- **`TransactionEvent` links to `AccountHolder` exactly one way: a real foreign key.**
+  `AccountHolderId` is a genuine, nullable foreign key to `AccountHolder.Id` (a real
+  primary key), enforced by Postgres and checked by `IngestTransactionCommandHandler`
+  before a transaction is created — an unknown `accountHolderId` fails fast with
+  `404`, not a raw FK violation. It's nullable, not required — the holder behind a
+  transaction isn't always known (or worth registering) at the moment it's ingested,
+  so a transaction is still valid without one. There used to be a second, weaker
+  link — both tables carried an `AccountId` field that a client could pair up by
+  value, but `AccountId` was never unique on either side, so it was only ever a
+  documented convention, not something the database enforced. It's gone now:
+  `AccountHolder` has no `AccountId` at all, and the FK is the only relationship
+  between the two tables. `TransactionEvent.AccountId` still exists — independent of
+  `AccountHolder`, it's how the history-dependent rules (`HighVelocity`,
+  `DuplicateTransaction`) group a transaction's own recent history by account.
+- **`AccountHolder.Update` doesn't touch `Id`.** It only ever replaces the mutable
+  personal fields (name, id/passport, email, date of birth). `Create` and `Update`
+  share the same private validation helpers (`RequireName`, `RequireIdPassport`,
+  `RequireNotFutureDateOfBirth`) so the two can never drift apart on what counts as
+  valid.
 - **`EmailAddress.IsValid` exists so the API can give a friendly `400` up front**,
   using the exact same regex `Create` enforces — the application layer's
   `CreateAccountHolderCommandValidator`/`UpdateAccountHolderCommandValidator` call

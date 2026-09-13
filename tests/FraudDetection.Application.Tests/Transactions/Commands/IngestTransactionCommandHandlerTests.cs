@@ -43,8 +43,8 @@ public class IngestTransactionCommandHandlerTests
         _clock.Object,
         NullLogger<IngestTransactionCommandHandler>.Instance);
 
-    private static AccountHolder CreateAccountHolder(Guid accountId) => AccountHolder.Create(
-        accountId, "Jane", "Doe", "A1234567", EmailAddress.Create("jane.doe@example.com"),
+    private static AccountHolder CreateAccountHolder() => AccountHolder.Create(
+        "Jane", "Doe", "A1234567", EmailAddress.Create("jane.doe@example.com"),
         new DateOnly(1990, 5, 20), DateOnly.FromDateTime(FixedNow));
 
     [Fact]
@@ -130,7 +130,7 @@ public class IngestTransactionCommandHandlerTests
     public async Task Handle_WithKnownAccountHolderId_SetsItOnTheTransaction()
     {
         var accountId = Guid.NewGuid();
-        var accountHolder = CreateAccountHolder(accountId);
+        var accountHolder = CreateAccountHolder();
 
         _accountHolderRepository
             .Setup(r => r.GetByIdAsync(accountHolder.Id, It.IsAny<CancellationToken>()))

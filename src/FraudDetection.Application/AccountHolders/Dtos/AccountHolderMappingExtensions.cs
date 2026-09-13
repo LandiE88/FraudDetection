@@ -6,7 +6,6 @@ public static class AccountHolderMappingExtensions
 {
     public static AccountHolderResponse ToResponse(this AccountHolder accountHolder) => new(
         accountHolder.Id,
-        accountHolder.AccountId,
         accountHolder.FirstName,
         accountHolder.LastName,
         accountHolder.IdPassport,

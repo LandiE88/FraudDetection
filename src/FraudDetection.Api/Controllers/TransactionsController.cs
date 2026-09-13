@@ -72,7 +72,12 @@ public sealed class TransactionsController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>Lists transaction events, optionally filtered by account, category, flagged status and date range.</summary>
+    /// <summary>
+    /// Lists transaction events, optionally filtered by account, account holder,
+    /// category, flagged status and date range. Use <c>accountHolderId</c> — the real
+    /// foreign key to <c>account_holders.Id</c> — to find all transactions for a
+    /// given account holder.
+    /// </summary>
     /// <response code="200">A (possibly empty) page of matching transactions.</response>
     /// <response code="400">The query parameters failed validation.</response>
     [HttpGet]
@@ -80,6 +85,7 @@ public sealed class TransactionsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PagedResult<TransactionResponse>>> Search(
         [FromQuery] Guid? accountId,
+        [FromQuery] Guid? accountHolderId,
         [FromQuery] TransactionCategory? category,
         [FromQuery] bool? onlyFlagged,
         [FromQuery] DateTime? fromUtc,
@@ -88,7 +94,7 @@ public sealed class TransactionsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var query = new GetTransactionsQuery(accountId, category, onlyFlagged, fromUtc, toUtc, page, pageSize);
+        var query = new GetTransactionsQuery(accountId, accountHolderId, category, onlyFlagged, fromUtc, toUtc, page, pageSize);
         var result = await _searchHandler.Handle(query, cancellationToken);
         return Ok(result);
     }

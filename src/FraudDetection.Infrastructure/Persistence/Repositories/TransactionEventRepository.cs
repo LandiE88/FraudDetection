@@ -38,6 +38,11 @@ public sealed class TransactionEventRepository : ITransactionEventRepository
             queryable = queryable.Where(t => t.AccountId == query.AccountId.Value);
         }
 
+        if (query.AccountHolderId.HasValue)
+        {
+            queryable = queryable.Where(t => t.AccountHolderId == query.AccountHolderId.Value);
+        }
+
         if (query.Category.HasValue)
         {
             queryable = queryable.Where(t => t.Category == query.Category.Value);

@@ -11,14 +11,12 @@ public class AccountHolderTests
     private static readonly EmailAddress ValidEmail = EmailAddress.Create("jane.doe@example.com");
 
     private static AccountHolder CreateValid(
-        Guid? accountId = null,
         string firstName = "Jane",
         string lastName = "Doe",
         string idPassport = "A1234567",
         EmailAddress? email = null,
         DateOnly? dateOfBirth = null) =>
         AccountHolder.Create(
-            accountId ?? Guid.NewGuid(),
             firstName,
             lastName,
             idPassport,
@@ -29,25 +27,14 @@ public class AccountHolderTests
     [Fact]
     public void Create_WithValidData_Succeeds()
     {
-        var accountId = Guid.NewGuid();
-
-        var holder = CreateValid(accountId: accountId);
+        var holder = CreateValid();
 
         holder.Id.Should().NotBe(Guid.Empty);
-        holder.AccountId.Should().Be(accountId);
         holder.FirstName.Should().Be("Jane");
         holder.LastName.Should().Be("Doe");
         holder.IdPassport.Should().Be("A1234567");
         holder.Email.Should().Be(ValidEmail);
         holder.DateOfBirth.Should().Be(new DateOnly(1990, 5, 20));
-    }
-
-    [Fact]
-    public void Create_WithEmptyAccountId_Throws()
-    {
-        var act = () => CreateValid(accountId: Guid.Empty);
-
-        act.Should().Throw<DomainException>();
     }
 
     [Theory]
@@ -127,17 +114,15 @@ public class AccountHolderTests
     }
 
     [Fact]
-    public void Update_WithValidData_ReplacesEveryMutableFieldButNotIdOrAccountId()
+    public void Update_WithValidData_ReplacesEveryMutableFieldButNotId()
     {
         var holder = CreateValid();
         var originalId = holder.Id;
-        var originalAccountId = holder.AccountId;
         var newEmail = EmailAddress.Create("john.smith@example.com");
 
         holder.Update("John", "Smith", "B9876543", newEmail, new DateOnly(1985, 2, 10), Today);
 
         holder.Id.Should().Be(originalId);
-        holder.AccountId.Should().Be(originalAccountId);
         holder.FirstName.Should().Be("John");
         holder.LastName.Should().Be("Smith");
         holder.IdPassport.Should().Be("B9876543");
