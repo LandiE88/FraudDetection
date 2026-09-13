@@ -1,7 +1,7 @@
 using FluentAssertions;
 using FluentValidation;
 using FraudDetection.Application.Common.Exceptions;
-using FraudDetection.Application.Transactions.Commands.IngestTransaction;
+using FraudDetection.Application.Transactions.Commands.CreateTransaction;
 using FraudDetection.Domain.AccountHolders;
 using FraudDetection.Domain.Common;
 using FraudDetection.Domain.Fraud;
@@ -13,7 +13,7 @@ using Xunit;
 
 namespace FraudDetection.Application.Tests.Transactions.Commands;
 
-public class IngestTransactionCommandHandlerTests
+public class CreateTransactionCommandHandlerTests
 {
     private readonly Mock<ITransactionEventRepository> _repository = new();
     private readonly Mock<IAccountHolderRepository> _accountHolderRepository = new();
@@ -22,7 +22,7 @@ public class IngestTransactionCommandHandlerTests
     private readonly Mock<IClock> _clock = new();
     private static readonly DateTime FixedNow = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
 
-    public IngestTransactionCommandHandlerTests()
+    public CreateTransactionCommandHandlerTests()
     {
         _clock.SetupGet(c => c.UtcNow).Returns(FixedNow);
         _repository
@@ -33,15 +33,15 @@ public class IngestTransactionCommandHandlerTests
             .ReturnsAsync(LargeAmountRule.DefaultThresholds);
     }
 
-    private IngestTransactionCommandHandler CreateHandler(FraudRuleEngine? engine = null) => new(
+    private CreateTransactionCommandHandler CreateHandler(FraudRuleEngine? engine = null) => new(
         _repository.Object,
         _accountHolderRepository.Object,
         _fraudRuleSettingsRepository.Object,
         _unitOfWork.Object,
         engine ?? new FraudRuleEngine(new IFraudRule[] { new LargeAmountRule() }),
-        new IngestTransactionCommandValidator(),
+        new CreateTransactionCommandValidator(),
         _clock.Object,
-        NullLogger<IngestTransactionCommandHandler>.Instance);
+        NullLogger<CreateTransactionCommandHandler>.Instance);
 
     private static AccountHolder CreateAccountHolder() => AccountHolder.Create(
         "Jane", "Doe", "A1234567", EmailAddress.Create("jane.doe@example.com"),
@@ -51,7 +51,7 @@ public class IngestTransactionCommandHandlerTests
     public async Task Handle_WithCleanTransaction_PersistsUnflaggedTransaction()
     {
         var handler = CreateHandler();
-        var command = new IngestTransactionCommand(
+        var command = new CreateTransactionCommand(
             Guid.NewGuid(), TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", FixedNow);
 
         var response = await handler.Handle(command, CancellationToken.None);
@@ -66,7 +66,7 @@ public class IngestTransactionCommandHandlerTests
     public async Task Handle_WithAmountOverThreshold_ReturnsFlaggedTransaction()
     {
         var handler = CreateHandler();
-        var command = new IngestTransactionCommand(
+        var command = new CreateTransactionCommand(
             Guid.NewGuid(), TransactionCategory.Purchase, 50_000m, "ZAR", "Corner Store", FixedNow);
 
         var response = await handler.Handle(command, CancellationToken.None);
@@ -81,7 +81,7 @@ public class IngestTransactionCommandHandlerTests
     {
         var handler = CreateHandler();
         var accountId = Guid.NewGuid();
-        var command = new IngestTransactionCommand(
+        var command = new CreateTransactionCommand(
             accountId, TransactionCategory.Purchase, 10m, "ZAR", "Corner Store", FixedNow);
 
         await handler.Handle(command, CancellationToken.None);
@@ -103,7 +103,7 @@ public class IngestTransactionCommandHandlerTests
             .ReturnsAsync(new Dictionary<TransactionCategory, decimal> { [TransactionCategory.Purchase] = 50m });
 
         var handler = CreateHandler();
-        var command = new IngestTransactionCommand(
+        var command = new CreateTransactionCommand(
             Guid.NewGuid(), TransactionCategory.Purchase, 75m, "ZAR", "Corner Store", FixedNow);
 
         var response = await handler.Handle(command, CancellationToken.None);
@@ -116,7 +116,7 @@ public class IngestTransactionCommandHandlerTests
     public async Task Handle_WithoutAccountHolderId_LeavesItNullOnTheTransaction()
     {
         var handler = CreateHandler();
-        var command = new IngestTransactionCommand(
+        var command = new CreateTransactionCommand(
             Guid.NewGuid(), TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", FixedNow);
 
         var response = await handler.Handle(command, CancellationToken.None);
@@ -137,7 +137,7 @@ public class IngestTransactionCommandHandlerTests
             .ReturnsAsync(accountHolder);
 
         var handler = CreateHandler();
-        var command = new IngestTransactionCommand(
+        var command = new CreateTransactionCommand(
             accountId, TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", FixedNow, accountHolder.Id);
 
         var response = await handler.Handle(command, CancellationToken.None);
@@ -155,7 +155,7 @@ public class IngestTransactionCommandHandlerTests
             .ReturnsAsync((AccountHolder?)null);
 
         var handler = CreateHandler();
-        var command = new IngestTransactionCommand(
+        var command = new CreateTransactionCommand(
             Guid.NewGuid(), TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", FixedNow, unknownAccountHolderId);
 
         var act = async () => await handler.Handle(command, CancellationToken.None);
@@ -168,11 +168,11 @@ public class IngestTransactionCommandHandlerTests
     public async Task Handle_WithInvalidAmount_ThrowsValidationExceptionBeforeTouchingRepository()
     {
         // With no MediatR pipeline behavior to run this automatically, the handler
-        // validates its own request first (see IngestTransactionCommandValidator) —
+        // validates its own request first (see CreateTransactionCommandValidator) —
         // this proves that guard is actually in place and short-circuits before any
         // domain object is constructed or the repository is touched.
         var handler = CreateHandler();
-        var command = new IngestTransactionCommand(
+        var command = new CreateTransactionCommand(
             Guid.NewGuid(), TransactionCategory.Purchase, -5m, "ZAR", "Corner Store", FixedNow);
 
         var act = async () => await handler.Handle(command, CancellationToken.None);

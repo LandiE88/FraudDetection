@@ -14,7 +14,7 @@ public class AccountHolderCrudTests : IClassFixture<CustomWebApplicationFactory>
 
     public AccountHolderCrudTests(CustomWebApplicationFactory factory)
     {
-        _client = factory.CreateClient();
+        _client = factory.CreateAuthenticatedClient();
     }
 
     [Fact]

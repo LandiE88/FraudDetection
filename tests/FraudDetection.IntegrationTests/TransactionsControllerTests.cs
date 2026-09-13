@@ -21,13 +21,13 @@ public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFac
     public TransactionsControllerTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
+        _client = factory.CreateAuthenticatedClient();
     }
 
     [Fact]
     public async Task Post_WithValidTransaction_Returns201AndPersistsIt()
     {
-        var request = new IngestTransactionRequest(
+        var request = new CreateTransactionRequest(
             Guid.NewGuid(), TransactionCategory.Purchase, 75.50m, "ZAR", "Corner Store", DateTime.UtcNow);
 
         var response = await _client.PostAsJsonAsync("/api/transactions", request);
@@ -48,7 +48,7 @@ public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFac
     [Fact]
     public async Task Post_WithAmountOverCategoryThreshold_ReturnsFlaggedTransaction()
     {
-        var request = new IngestTransactionRequest(
+        var request = new CreateTransactionRequest(
             Guid.NewGuid(), TransactionCategory.Purchase, 25_000m, "ZAR", "Electronics Megastore", DateTime.UtcNow);
 
         var response = await _client.PostAsJsonAsync("/api/transactions", request);
@@ -63,7 +63,7 @@ public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFac
     [Fact]
     public async Task Post_WithInvalidPayload_Returns400WithValidationErrors()
     {
-        var request = new IngestTransactionRequest(
+        var request = new CreateTransactionRequest(
             Guid.Empty, TransactionCategory.Purchase, -10m, "US", "", DateTime.UtcNow);
 
         var response = await _client.PostAsJsonAsync("/api/transactions", request);
@@ -91,10 +91,10 @@ public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFac
     {
         var accountId = Guid.NewGuid();
 
-        await _client.PostAsJsonAsync("/api/transactions", new IngestTransactionRequest(
+        await _client.PostAsJsonAsync("/api/transactions", new CreateTransactionRequest(
             accountId, TransactionCategory.Purchase, 50m, "ZAR", "Clean Merchant", DateTime.UtcNow));
 
-        await _client.PostAsJsonAsync("/api/transactions", new IngestTransactionRequest(
+        await _client.PostAsJsonAsync("/api/transactions", new CreateTransactionRequest(
             accountId, TransactionCategory.Purchase, 25_000m, "ZAR", "Suspicious Merchant", DateTime.UtcNow));
 
         var response = await _client.GetAsync($"/api/transactions?accountId={accountId}&onlyFlagged=true");
@@ -121,7 +121,7 @@ public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFac
     {
         var holder = await SeedAccountHolderAsync();
 
-        var request = new IngestTransactionRequest(
+        var request = new CreateTransactionRequest(
             Guid.NewGuid(), TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", DateTime.UtcNow, holder.Id);
 
         var response = await _client.PostAsJsonAsync("/api/transactions", request);
@@ -134,7 +134,7 @@ public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFac
     [Fact]
     public async Task Post_WithUnknownAccountHolderId_Returns404()
     {
-        var request = new IngestTransactionRequest(
+        var request = new CreateTransactionRequest(
             Guid.NewGuid(), TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", DateTime.UtcNow, Guid.NewGuid());
 
         var response = await _client.PostAsJsonAsync("/api/transactions", request);
@@ -148,10 +148,10 @@ public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFac
         var holder = await SeedAccountHolderAsync();
         var otherHolder = await SeedAccountHolderAsync();
 
-        await _client.PostAsJsonAsync("/api/transactions", new IngestTransactionRequest(
+        await _client.PostAsJsonAsync("/api/transactions", new CreateTransactionRequest(
             Guid.NewGuid(), TransactionCategory.Purchase, 50m, "ZAR", "Holder's Merchant", DateTime.UtcNow, holder.Id));
 
-        await _client.PostAsJsonAsync("/api/transactions", new IngestTransactionRequest(
+        await _client.PostAsJsonAsync("/api/transactions", new CreateTransactionRequest(
             Guid.NewGuid(), TransactionCategory.Purchase, 60m, "ZAR", "Other Holder's Merchant", DateTime.UtcNow, otherHolder.Id));
 
         var response = await _client.GetAsync($"/api/transactions?accountHolderId={holder.Id}");

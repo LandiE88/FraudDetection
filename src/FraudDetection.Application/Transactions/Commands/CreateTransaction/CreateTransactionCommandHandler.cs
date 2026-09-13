@@ -8,9 +8,9 @@ using FraudDetection.Domain.Fraud;
 using FraudDetection.Domain.Transactions;
 using Microsoft.Extensions.Logging;
 
-namespace FraudDetection.Application.Transactions.Commands.IngestTransaction;
+namespace FraudDetection.Application.Transactions.Commands.CreateTransaction;
 
-public sealed class IngestTransactionCommandHandler : ICommandHandler<IngestTransactionCommand, TransactionResponse>
+public sealed class CreateTransactionCommandHandler : ICommandHandler<CreateTransactionCommand, TransactionResponse>
 {
     // How far back to look for this account's history when evaluating rules such as
     // velocity and duplicate detection. Comfortably larger than the widest window any
@@ -22,19 +22,19 @@ public sealed class IngestTransactionCommandHandler : ICommandHandler<IngestTran
     private readonly IFraudRuleSettingsRepository _fraudRuleSettingsRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly FraudRuleEngine _fraudRuleEngine;
-    private readonly IValidator<IngestTransactionCommand> _validator;
+    private readonly IValidator<CreateTransactionCommand> _validator;
     private readonly IClock _clock;
-    private readonly ILogger<IngestTransactionCommandHandler> _logger;
+    private readonly ILogger<CreateTransactionCommandHandler> _logger;
 
-    public IngestTransactionCommandHandler(
+    public CreateTransactionCommandHandler(
         ITransactionEventRepository transactionEventRepository,
         IAccountHolderRepository accountHolderRepository,
         IFraudRuleSettingsRepository fraudRuleSettingsRepository,
         IUnitOfWork unitOfWork,
         FraudRuleEngine fraudRuleEngine,
-        IValidator<IngestTransactionCommand> validator,
+        IValidator<CreateTransactionCommand> validator,
         IClock clock,
-        ILogger<IngestTransactionCommandHandler> logger)
+        ILogger<CreateTransactionCommandHandler> logger)
     {
         _transactionEventRepository = transactionEventRepository;
         _accountHolderRepository = accountHolderRepository;
@@ -46,7 +46,7 @@ public sealed class IngestTransactionCommandHandler : ICommandHandler<IngestTran
         _logger = logger;
     }
 
-    public async Task<TransactionResponse> Handle(IngestTransactionCommand request, CancellationToken cancellationToken = default)
+    public async Task<TransactionResponse> Handle(CreateTransactionCommand request, CancellationToken cancellationToken = default)
     {
         // With no pipeline to run this automatically, every handler validates its own
         // request up front. The API's global exception handler still turns the

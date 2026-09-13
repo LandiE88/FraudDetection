@@ -23,14 +23,14 @@ public class LargeAmountThresholdConfigurationTests : IClassFixture<CustomWebApp
     public LargeAmountThresholdConfigurationTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
+        _client = factory.CreateAuthenticatedClient();
     }
 
     [Fact]
     public async Task Post_AfterLoweringThresholdInDatabase_FlagsAnAmountThatWasPreviouslyFine()
     {
         // Well under the seeded R5,000 default for Purchase — should not be flagged yet.
-        var beforeResponse = await _client.PostAsJsonAsync("/api/transactions", new IngestTransactionRequest(
+        var beforeResponse = await _client.PostAsJsonAsync("/api/transactions", new CreateTransactionRequest(
             Guid.NewGuid(), TransactionCategory.Purchase, 150m, "ZAR", "Corner Store", DateTime.UtcNow));
         var before = await beforeResponse.Content.ReadFromJsonAsync<TransactionResponse>();
         before!.IsFlagged.Should().BeFalse();
@@ -39,7 +39,7 @@ public class LargeAmountThresholdConfigurationTests : IClassFixture<CustomWebApp
         await SetPurchaseThresholdAsync(100m);
 
         // The same amount should now be flagged, with no code change or restart.
-        var afterResponse = await _client.PostAsJsonAsync("/api/transactions", new IngestTransactionRequest(
+        var afterResponse = await _client.PostAsJsonAsync("/api/transactions", new CreateTransactionRequest(
             Guid.NewGuid(), TransactionCategory.Purchase, 150m, "ZAR", "Corner Store", DateTime.UtcNow));
         var after = await afterResponse.Content.ReadFromJsonAsync<TransactionResponse>();
 

@@ -19,7 +19,7 @@ public class AccountHoldersControllerTests : IClassFixture<CustomWebApplicationF
     public AccountHoldersControllerTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
+        _client = factory.CreateAuthenticatedClient();
     }
 
     [Fact]

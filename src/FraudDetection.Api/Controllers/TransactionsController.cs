@@ -1,7 +1,7 @@
 using FraudDetection.Api.Contracts;
 using FraudDetection.Application.Common.Messaging;
 using FraudDetection.Application.Common.Models;
-using FraudDetection.Application.Transactions.Commands.IngestTransaction;
+using FraudDetection.Application.Transactions.Commands.CreateTransaction;
 using FraudDetection.Application.Transactions.Dtos;
 using FraudDetection.Application.Transactions.Queries.GetTransactionById;
 using FraudDetection.Application.Transactions.Queries.GetTransactions;
@@ -15,16 +15,16 @@ namespace FraudDetection.Api.Controllers;
 [Produces("application/json")]
 public sealed class TransactionsController : ControllerBase
 {
-    private readonly ICommandHandler<IngestTransactionCommand, TransactionResponse> _ingestHandler;
+    private readonly ICommandHandler<CreateTransactionCommand, TransactionResponse> _createHandler;
     private readonly IQueryHandler<GetTransactionByIdQuery, TransactionResponse> _getByIdHandler;
     private readonly IQueryHandler<GetTransactionsQuery, PagedResult<TransactionResponse>> _searchHandler;
 
     public TransactionsController(
-        ICommandHandler<IngestTransactionCommand, TransactionResponse> ingestHandler,
+        ICommandHandler<CreateTransactionCommand, TransactionResponse> createHandler,
         IQueryHandler<GetTransactionByIdQuery, TransactionResponse> getByIdHandler,
         IQueryHandler<GetTransactionsQuery, PagedResult<TransactionResponse>> searchHandler)
     {
-        _ingestHandler = ingestHandler;
+        _createHandler = createHandler;
         _getByIdHandler = getByIdHandler;
         _searchHandler = searchHandler;
     }
@@ -43,10 +43,10 @@ public sealed class TransactionsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
-    public async Task<ActionResult<TransactionResponse>> Ingest(
-        [FromBody] IngestTransactionRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<TransactionResponse>> Create(
+        [FromBody] CreateTransactionRequest request, CancellationToken cancellationToken)
     {
-        var command = new IngestTransactionCommand(
+        var command = new CreateTransactionCommand(
             request.AccountId,
             request.Category,
             request.Amount,
@@ -55,7 +55,7 @@ public sealed class TransactionsController : ControllerBase
             request.OccurredAtUtc,
             request.AccountHolderId);
 
-        var result = await _ingestHandler.Handle(command, cancellationToken);
+        var result = await _createHandler.Handle(command, cancellationToken);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }

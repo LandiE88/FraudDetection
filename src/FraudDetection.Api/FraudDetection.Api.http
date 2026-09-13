@@ -1,8 +1,31 @@
 @FraudDetection.Api_HostAddress = http://localhost:5124
 
+### Register a user (every other endpoint below requires the token this returns)
+# @name register
+POST {{FraudDetection.Api_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "jane.doe@example.com",
+  "password": "Str0ngPassword!"
+}
+
+### Log in (alternative to register once the user above already exists)
+# @name login
+POST {{FraudDetection.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "jane.doe@example.com",
+  "password": "Str0ngPassword!"
+}
+
+@authToken = {{register.response.body.$.token}}
+
 ### Ingest a clean transaction
 POST {{FraudDetection.Api_HostAddress}}/api/transactions
 Content-Type: application/json
+Authorization: Bearer {{authToken}}
 
 {
   "accountId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
@@ -16,6 +39,7 @@ Content-Type: application/json
 ### Ingest a transaction that should trigger the LargeAmount rule
 POST {{FraudDetection.Api_HostAddress}}/api/transactions
 Content-Type: application/json
+Authorization: Bearer {{authToken}}
 
 {
   "accountId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
@@ -29,17 +53,19 @@ Content-Type: application/json
 ### List all transactions
 GET {{FraudDetection.Api_HostAddress}}/api/transactions
 Accept: application/json
+Authorization: Bearer {{authToken}}
 
 ### List only flagged transactions
 GET {{FraudDetection.Api_HostAddress}}/api/transactions?onlyFlagged=true
 Accept: application/json
+Authorization: Bearer {{authToken}}
 
 ### Register an account holder
 POST {{FraudDetection.Api_HostAddress}}/api/account-holders
 Content-Type: application/json
+Authorization: Bearer {{authToken}}
 
 {
-  "accountId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "firstName": "Jane",
   "lastName": "Doe",
   "idPassport": "A1234567",
@@ -50,10 +76,12 @@ Content-Type: application/json
 ### Fetch an account holder by id (replace the id below with one from the response above)
 GET {{FraudDetection.Api_HostAddress}}/api/account-holders/00000000-0000-0000-0000-000000000000
 Accept: application/json
+Authorization: Bearer {{authToken}}
 
 ### Update an account holder (replace the id below with one from the create response)
 PUT {{FraudDetection.Api_HostAddress}}/api/account-holders/00000000-0000-0000-0000-000000000000
 Content-Type: application/json
+Authorization: Bearer {{authToken}}
 
 {
   "firstName": "Janet",
@@ -66,7 +94,8 @@ Content-Type: application/json
 ### Search account holders by last name
 GET {{FraudDetection.Api_HostAddress}}/api/account-holders?lastName=doe
 Accept: application/json
+Authorization: Bearer {{authToken}}
 
-### Health check
+### Health check (no token required)
 GET {{FraudDetection.Api_HostAddress}}/health
 Accept: application/json

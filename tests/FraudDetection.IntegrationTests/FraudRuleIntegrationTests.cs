@@ -18,7 +18,7 @@ public class FraudRuleIntegrationTests : IClassFixture<CustomWebApplicationFacto
 
     public FraudRuleIntegrationTests(CustomWebApplicationFactory factory)
     {
-        _client = factory.CreateClient();
+        _client = factory.CreateAuthenticatedClient();
     }
 
     [Fact]
@@ -27,8 +27,8 @@ public class FraudRuleIntegrationTests : IClassFixture<CustomWebApplicationFacto
         var accountId = Guid.NewGuid();
         var now = DateTime.UtcNow;
 
-        var first = new IngestTransactionRequest(accountId, TransactionCategory.Purchase, 60m, "ZAR", "Streaming Service", now);
-        var second = new IngestTransactionRequest(accountId, TransactionCategory.Purchase, 60m, "ZAR", "Streaming Service", now.AddSeconds(30));
+        var first = new CreateTransactionRequest(accountId, TransactionCategory.Purchase, 60m, "ZAR", "Streaming Service", now);
+        var second = new CreateTransactionRequest(accountId, TransactionCategory.Purchase, 60m, "ZAR", "Streaming Service", now.AddSeconds(30));
 
         await _client.PostAsJsonAsync("/api/transactions", first);
         var secondResponse = await _client.PostAsJsonAsync("/api/transactions", second);
@@ -45,11 +45,11 @@ public class FraudRuleIntegrationTests : IClassFixture<CustomWebApplicationFacto
 
         for (var i = 0; i < 5; i++)
         {
-            await _client.PostAsJsonAsync("/api/transactions", new IngestTransactionRequest(
+            await _client.PostAsJsonAsync("/api/transactions", new CreateTransactionRequest(
                 accountId, TransactionCategory.Purchase, 20m + i, "ZAR", $"Merchant {i}", baseTime.AddMinutes(i)));
         }
 
-        var sixthResponse = await _client.PostAsJsonAsync("/api/transactions", new IngestTransactionRequest(
+        var sixthResponse = await _client.PostAsJsonAsync("/api/transactions", new CreateTransactionRequest(
             accountId, TransactionCategory.Purchase, 30m, "ZAR", "Merchant 5", baseTime.AddMinutes(5)));
 
         var body = await sixthResponse.Content.ReadFromJsonAsync<TransactionResponse>();

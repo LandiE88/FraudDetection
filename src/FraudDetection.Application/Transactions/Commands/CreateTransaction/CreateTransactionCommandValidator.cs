@@ -1,10 +1,10 @@
 using FluentValidation;
 
-namespace FraudDetection.Application.Transactions.Commands.IngestTransaction;
+namespace FraudDetection.Application.Transactions.Commands.CreateTransaction;
 
-public sealed class IngestTransactionCommandValidator : AbstractValidator<IngestTransactionCommand>
+public sealed class CreateTransactionCommandValidator : AbstractValidator<CreateTransactionCommand>
 {
-    public IngestTransactionCommandValidator()
+    public CreateTransactionCommandValidator()
     {
         RuleFor(x => x.AccountId).NotEmpty();
 

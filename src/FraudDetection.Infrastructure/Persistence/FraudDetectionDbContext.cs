@@ -3,12 +3,23 @@ using FraudDetection.Application.Common.Events;
 using FraudDetection.Domain.AccountHolders;
 using FraudDetection.Domain.Common;
 using FraudDetection.Domain.Transactions;
+using FraudDetection.Infrastructure.Identity;
 using FraudDetection.Infrastructure.Persistence.FraudRuleSettings;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace FraudDetection.Infrastructure.Persistence;
 
-public sealed class FraudDetectionDbContext : DbContext
+/// <summary>
+/// Inherits <see cref="IdentityDbContext{TUser, TRole, TKey}"/> rather than plain
+/// <see cref="DbContext"/> so the Identity user/role tables live in the same database
+/// and migration history as everything else — there's no separate "auth database" to
+/// keep in sync. <see cref="ApplicationUser"/> is an infrastructure/framework concern
+/// (see its own remarks), which is why it's the only entity here not configured
+/// alongside the domain aggregates in Persistence/Configurations.
+/// </summary>
+public sealed class FraudDetectionDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
 {
     private readonly IDomainEventDispatcher? _domainEventDispatcher;
 
@@ -32,6 +43,20 @@ public sealed class FraudDetectionDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
+        // Identity's default table names (AspNetUsers, AspNetRoles, ...) don't match
+        // this project's lowercase-snake convention (account_holders,
+        // transaction_events, ...) — rename them to fit rather than leaving Identity's
+        // defaults as the one exception.
+        modelBuilder.Entity<ApplicationUser>(b => b.ToTable("users"));
+        modelBuilder.Entity<IdentityRole<Guid>>(b => b.ToTable("roles"));
+        modelBuilder.Entity<IdentityUserRole<Guid>>(b => b.ToTable("user_roles"));
+        modelBuilder.Entity<IdentityUserClaim<Guid>>(b => b.ToTable("user_claims"));
+        modelBuilder.Entity<IdentityUserLogin<Guid>>(b => b.ToTable("user_logins"));
+        modelBuilder.Entity<IdentityUserToken<Guid>>(b => b.ToTable("user_tokens"));
+        modelBuilder.Entity<IdentityRoleClaim<Guid>>(b => b.ToTable("role_claims"));
+
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
     }
 

@@ -5,10 +5,13 @@ using FraudDetection.Application.AccountHolders.Commands.UpdateAccountHolder;
 using FraudDetection.Application.AccountHolders.Dtos;
 using FraudDetection.Application.AccountHolders.Queries.GetAccountHolderById;
 using FraudDetection.Application.AccountHolders.Queries.SearchAccountHolders;
+using FraudDetection.Application.Auth.Commands.Login;
+using FraudDetection.Application.Auth.Commands.Register;
+using FraudDetection.Application.Auth.Dtos;
 using FraudDetection.Application.Common.Events;
 using FraudDetection.Application.Common.Messaging;
 using FraudDetection.Application.Common.Models;
-using FraudDetection.Application.Transactions.Commands.IngestTransaction;
+using FraudDetection.Application.Transactions.Commands.CreateTransaction;
 using FraudDetection.Application.Transactions.Dtos;
 using FraudDetection.Application.Transactions.EventHandlers;
 using FraudDetection.Application.Transactions.Queries.GetTransactionById;
@@ -37,13 +40,15 @@ public static class DependencyInjection
     {
         // Each use case is registered against its own interface and resolved by the
         // controller directly — there is no bus to route through.
-        services.AddScoped<ICommandHandler<IngestTransactionCommand, TransactionResponse>, IngestTransactionCommandHandler>();
+        services.AddScoped<ICommandHandler<CreateTransactionCommand, TransactionResponse>, CreateTransactionCommandHandler>();
         services.AddScoped<IQueryHandler<GetTransactionByIdQuery, TransactionResponse>, GetTransactionByIdQueryHandler>();
         services.AddScoped<IQueryHandler<GetTransactionsQuery, PagedResult<TransactionResponse>>, GetTransactionsQueryHandler>();
         services.AddScoped<IQueryHandler<SearchAccountHoldersQuery, PagedResult<AccountHolderResponse>>, SearchAccountHoldersQueryHandler>();
         services.AddScoped<IQueryHandler<GetAccountHolderByIdQuery, AccountHolderResponse>, GetAccountHolderByIdQueryHandler>();
         services.AddScoped<ICommandHandler<CreateAccountHolderCommand, AccountHolderResponse>, CreateAccountHolderCommandHandler>();
         services.AddScoped<ICommandHandler<UpdateAccountHolderCommand, AccountHolderResponse>, UpdateAccountHolderCommandHandler>();
+        services.AddScoped<ICommandHandler<RegisterCommand, AuthResponse>, RegisterCommandHandler>();
+        services.AddScoped<ICommandHandler<LoginCommand, AuthResponse>, LoginCommandHandler>();
     }
 
     private static void AddDomainEventDispatch(IServiceCollection services)

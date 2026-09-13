@@ -1,3 +1,6 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using FraudDetection.Application.Auth.Dtos;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -37,5 +40,31 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["ConnectionStrings:FraudDetectionDb"] = _postgres.GetConnectionString()
             });
         });
+    }
+
+    /// <summary>
+    /// Every endpoint except /api/auth/* and /health requires a bearer token now, so
+    /// most tests in this project don't want a plain <see cref="CreateClient"/> —
+    /// they want one that's already carrying a valid token for a throwaway user,
+    /// registered fresh so tests never collide on email uniqueness.
+    /// </summary>
+    public HttpClient CreateAuthenticatedClient()
+    {
+        var client = CreateClient();
+        var token = RegisterAndLoginAsync(client).GetAwaiter().GetResult();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    private static async Task<string> RegisterAndLoginAsync(HttpClient client)
+    {
+        var email = $"{Guid.NewGuid():N}@example.com";
+        const string password = "Str0ngPassword!";
+
+        var response = await client.PostAsJsonAsync("/api/auth/register", new { email, password });
+        response.EnsureSuccessStatusCode();
+
+        var auth = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        return auth!.Token;
     }
 }

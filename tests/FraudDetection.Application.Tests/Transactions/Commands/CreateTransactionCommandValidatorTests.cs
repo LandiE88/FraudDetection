@@ -1,16 +1,16 @@
 using FluentAssertions;
 using FluentValidation.TestHelper;
-using FraudDetection.Application.Transactions.Commands.IngestTransaction;
+using FraudDetection.Application.Transactions.Commands.CreateTransaction;
 using FraudDetection.Domain.Transactions;
 using Xunit;
 
 namespace FraudDetection.Application.Tests.Transactions.Commands;
 
-public class IngestTransactionCommandValidatorTests
+public class CreateTransactionCommandValidatorTests
 {
-    private readonly IngestTransactionCommandValidator _validator = new();
+    private readonly CreateTransactionCommandValidator _validator = new();
 
-    private static IngestTransactionCommand ValidCommand() => new(
+    private static CreateTransactionCommand ValidCommand() => new(
         Guid.NewGuid(), TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", DateTime.UtcNow);
 
     [Fact]

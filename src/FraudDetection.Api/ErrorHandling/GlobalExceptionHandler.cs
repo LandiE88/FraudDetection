@@ -27,6 +27,7 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         {
             ValidationException => (StatusCodes.Status400BadRequest, "One or more validation errors occurred."),
             NotFoundException => (StatusCodes.Status404NotFound, "Resource not found."),
+            UnauthorizedException => (StatusCodes.Status401Unauthorized, "Authentication failed."),
             DomainException => (StatusCodes.Status422UnprocessableEntity, "The request violates a business rule."),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.")
         };

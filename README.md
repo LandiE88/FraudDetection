@@ -7,6 +7,7 @@ PostgreSQL, and exposes everything through a RESTful API.
 ## Contents
 
 - [Architecture](#architecture)
+- [Authentication](#authentication)
 - [Fraud rules](#fraud-rules)
 - [Project layout](#project-layout)
 - [Running with Docker (recommended)](#running-with-docker-recommended)
@@ -30,7 +31,7 @@ FraudDetection.Infrastructure -------+-----------------------------+
 | Layer | Responsibility |
 |---|---|
 | **Domain** | The `TransactionEvent` aggregate, the `Money` value object, the `FraudFlag` entity, and the fraud rules themselves. Zero dependencies on anything outside the BCL — no EF Core, no ASP.NET Core, no third-party messaging library. Every fraud rule is a pure function of a transaction and its recent history: no I/O, no clock access, fully unit-testable in isolation. |
-| **Application** | Orchestrates use cases as explicit command/query handlers (`IngestTransactionCommand` → `IngestTransactionCommandHandler`, `GetTransactionByIdQuery`, `GetTransactionsQuery`), each registered behind an `ICommandHandler`/`IQueryHandler` interface the API resolves directly via DI — no bus in between. FluentValidation runs inside each handler, DTO mapping, and a small custom `IDomainEventDispatcher` that routes domain events to their handlers. Depends only on Domain. |
+| **Application** | Orchestrates use cases as explicit command/query handlers (`CreateTransactionCommand` → `CreateTransactionCommandHandler`, `GetTransactionByIdQuery`, `GetTransactionsQuery`), each registered behind an `ICommandHandler`/`IQueryHandler` interface the API resolves directly via DI — no bus in between. FluentValidation runs inside each handler, DTO mapping, and a small custom `IDomainEventDispatcher` that routes domain events to their handlers. Depends only on Domain. |
 | **Infrastructure** | EF Core `DbContext`, entity configurations, the Npgsql provider, repository/unit-of-work implementations, and the system clock. Depends on Domain + Application (to dispatch domain events through `IDomainEventDispatcher` after a successful save). |
 | **Api** | ASP.NET Core Web API: controllers, request/response contracts, Swagger, and a single global exception handler that maps domain/application exceptions to RFC 7807 `ProblemDetails`. |
 
@@ -43,8 +44,66 @@ registered via ASP.NET Core 8's `IExceptionHandler`:
 |---|---|---|
 | `FluentValidation.ValidationException` | 400 Bad Request | Request failed input validation; response body is a `ValidationProblemDetails` with one entry per invalid field. |
 | `NotFoundException` | 404 Not Found | The requested transaction doesn't exist. |
+| `UnauthorizedException` | 401 Unauthorized | An email/password pair supplied to `/api/auth/login` was invalid. |
 | `DomainException` | 422 Unprocessable Entity | The request is well-formed but violates a domain invariant (e.g. a non-positive amount). |
 | Anything else | 500 Internal Server Error | Logged with full detail server-side; the client only ever sees a generic message. |
+
+## Authentication
+
+Every endpoint requires a JWT bearer token **except** `/api/auth/register`,
+`/api/auth/login`, `/health`, and the Swagger UI itself — enforced by a global
+`AuthorizeFilter` applied to all controllers in `Program.cs`, with `AuthController`
+opting out via `[AllowAnonymous]` (a caller can't have a token before it exists).
+There are no roles or per-endpoint permissions yet: any authenticated caller can do
+anything. Layering that in later is a matter of adding `[Authorize(Roles = "...")]`
+where it's needed — the plumbing (an `IdentityRole<Guid>` table, `AddRoles<>()` in
+[`Infrastructure/DependencyInjection.cs`](src/FraudDetection.Infrastructure/DependencyInjection.cs))
+is already in place.
+
+### `POST /api/auth/register` — create an account and get a token
+
+```bash
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "jane.doe@example.com", "password": "Str0ngPassword!" }'
+```
+
+Passwords need at least 8 characters with an uppercase letter, a lowercase letter and
+a digit (checked twice, the same way `EmailAddress` format is: once in
+`RegisterCommandValidator` for a fast `400`, once by ASP.NET Core Identity itself as
+the source of truth — see [Design notes](#design-notes)). Returns `201 Created` with:
+
+```json
+{
+  "email": "jane.doe@example.com",
+  "token": "eyJhbGciOi...",
+  "expiresAtUtc": "2026-01-01T13:00:00Z"
+}
+```
+
+Send the token on every subsequent request as `Authorization: Bearer <token>`.
+
+### `POST /api/auth/login` — exchange credentials for a fresh token
+
+Same request/response shape as register. Returns `200 OK`, or `401 Unauthorized` for
+an unknown email or wrong password — deliberately the same error either way, so a
+caller can't use this endpoint to discover which emails are registered.
+
+```bash
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "jane.doe@example.com", "password": "Str0ngPassword!" }'
+```
+
+### Production note
+
+`appsettings.json` ships a placeholder `Jwt:Key` for local development only —
+override it with a real secret (32+ characters) via the `Jwt__Key` environment
+variable or a proper secret store before deploying anywhere real, the same way the
+default database password needs overriding. Anyone who registers gets a working
+token today; a real deployment would likely lock `/api/auth/register` down (an
+invite flow, an admin-only endpoint, or removing it in favor of provisioning users
+some other way) rather than leaving self-service sign-up open.
 
 ## Fraud rules
 
@@ -159,6 +218,10 @@ dotnet ef migrations add <Name> \
 ```
 
 ## API reference
+
+Every endpoint below requires `Authorization: Bearer <token>` — see
+[Authentication](#authentication) for how to get one via
+`POST /api/auth/register` or `POST /api/auth/login`.
 
 ### `POST /api/transactions` — ingest a transaction event
 
@@ -337,8 +400,13 @@ dotnet test FraudDetection.sln
 | Project | What it covers | External dependencies |
 |---|---|---|
 | `FraudDetection.Domain.Tests` | Every fraud rule in isolation, `TransactionEvent`/`AccountHolder` invariants and domain-event raising, `Money`/`EmailAddress` value semantics, the rule engine. | None |
-| `FraudDetection.Application.Tests` | Command/query handlers against mocked repositories (Moq), FluentValidation validators. | None |
-| `FraudDetection.IntegrationTests` | The real API pipeline (`WebApplicationFactory`) against a real PostgreSQL (Testcontainers): ingestion, validation error shapes, 404s, filtering/paging, account holder CRUD + search, linking a transaction to an account holder, and the history-dependent rules (velocity, duplicate detection) end to end. | Docker (for Testcontainers) |
+| `FraudDetection.Application.Tests` | Command/query handlers against mocked repositories (Moq), FluentValidation validators, register/login handlers against a mocked `IIdentityService`/`IJwtTokenGenerator`. | None |
+| `FraudDetection.IntegrationTests` | The real API pipeline (`WebApplicationFactory`) against a real PostgreSQL (Testcontainers): ingestion, validation error shapes, 404s, filtering/paging, account holder CRUD + search, linking a transaction to an account holder, the history-dependent rules (velocity, duplicate detection), and authentication (register/login, 401s, the global "authenticated by default" policy) end to end. | Docker (for Testcontainers) |
+
+`CustomWebApplicationFactory.CreateAuthenticatedClient()` registers a fresh throwaway
+user and attaches its token to the returned `HttpClient`, so every test class besides
+`AuthControllerTests` itself can call protected endpoints without repeating that
+boilerplate.
 
 `docker compose up --build` also runs the Domain and Application suites automatically
 as part of building the image (see [Running with Docker](#running-with-docker-recommended)).
@@ -351,7 +419,7 @@ as part of building the image (see [Running with Docker](#running-with-docker-re
   receives a `FraudRuleEvaluationContext` containing the transaction, an
   already-fetched window of the account's recent history, and the current
   `FraudRuleSettings` (e.g. `LargeAmount` thresholds) — all fetched once by
-  `IngestTransactionCommandHandler` before evaluation starts. This keeps the domain
+  `CreateTransactionCommandHandler` before evaluation starts. This keeps the domain
   layer free of I/O and trivially testable, and it's why database-backed
   configuration (the LargeAmount thresholds) didn't require making `Evaluate` async:
   the handler does the one DB round trip, the rule just reads a value out of the
@@ -389,7 +457,7 @@ as part of building the image (see [Running with Docker](#running-with-docker-re
   mapped the same way on `TransactionEvent`.
 - **`TransactionEvent` links to `AccountHolder` exactly one way: a real foreign key.**
   `AccountHolderId` is a genuine, nullable foreign key to `AccountHolder.Id` (a real
-  primary key), enforced by Postgres and checked by `IngestTransactionCommandHandler`
+  primary key), enforced by Postgres and checked by `CreateTransactionCommandHandler`
   before a transaction is created — an unknown `accountHolderId` fails fast with
   `404`, not a raw FK violation. It's nullable, not required — the holder behind a
   transaction isn't always known (or worth registering) at the moment it's ingested,
@@ -411,3 +479,26 @@ as part of building the image (see [Running with Docker](#running-with-docker-re
   `CreateAccountHolderCommandValidator`/`UpdateAccountHolderCommandValidator` call
   `EmailAddress.IsValid` rather than duplicating the pattern, so there's one source of
   truth for "what counts as a valid email" shared by validation and construction.
+- **The login user is not `AccountHolder`, deliberately.** `AccountHolder` is a fraud
+  domain concept — a person a transaction can be linked to — with no notion of
+  logging in; `ApplicationUser` (`FraudDetection.Infrastructure/Identity`) is "who is
+  allowed to call the API", a framework concern with no fraud-detection meaning. They
+  share a database but nothing else, and nothing stops a real deployment from
+  eventually linking the two (e.g. an `ApplicationUser` that manages a given
+  `AccountHolder`'s data) without either one needing to change shape.
+- **Auth follows the same repository-interface pattern as everything else.**
+  `IIdentityService` and `IJwtTokenGenerator` (`FraudDetection.Application/Auth`) are
+  the only things `RegisterCommandHandler`/`LoginCommandHandler` depend on — neither
+  the application layer nor its tests reference ASP.NET Core Identity or a JWT
+  library directly, the same separation `IAccountHolderRepository` gives the rest of
+  the application layer from EF Core. `IdentityService` and `JwtTokenGenerator`
+  (`FraudDetection.Infrastructure/Identity`) are the only two places those
+  dependencies actually show up.
+- **Login and registration return the same error either way.** `LoginCommandHandler`
+  throws the same `UnauthorizedException("Invalid email or password.")` whether the
+  email doesn't exist or the password is wrong, so the endpoint can't be used to
+  enumerate which emails are registered. `IdentityService.ValidateCredentialsAsync`
+  uses `SignInManager.CheckPasswordSignInAsync` rather than
+  `UserManager.CheckPasswordAsync` so repeated wrong guesses still count toward
+  ASP.NET Core Identity's account lockout, even though the two look identical from
+  the caller's side.

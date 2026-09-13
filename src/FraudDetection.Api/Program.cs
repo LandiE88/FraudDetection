@@ -1,16 +1,31 @@
+using System.Text;
 using FraudDetection.Api.ErrorHandling;
 using FraudDetection.Application;
 using FraudDetection.Infrastructure;
+using FraudDetection.Infrastructure.Identity;
 using FraudDetection.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    // Every endpoint requires a valid bearer token by default; AuthController opts
+    // out with [AllowAnonymous] since a caller can't have a token before registering
+    // or logging in. Layering per-role policies on top of this is a matter of adding
+    // [Authorize(Roles = "...")] to individual controllers/actions later — nothing
+    // here needs to change for that.
+    options.Filters.Add(new AuthorizeFilter());
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "Fraud Detection API",
         Version = "v1",
@@ -23,10 +38,44 @@ builder.Services.AddSwaggerGen(options =>
     {
         options.IncludeXmlComments(xmlPath);
     }
+
+    var bearerScheme = new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Description = "JWT bearer token from POST /api/auth/login or /api/auth/register. Example: \"Bearer {token}\"",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+    };
+    options.AddSecurityDefinition(bearerScheme.Reference.Id, bearerScheme);
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement { [bearerScheme] = Array.Empty<string>() });
 });
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
+    ?? throw new InvalidOperationException($"Missing '{JwtSettings.SectionName}' configuration section.");
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtSettings.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwtSettings.Audience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+    });
+builder.Services.AddAuthorization();
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -45,6 +94,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
