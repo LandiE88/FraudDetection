@@ -9,4 +9,5 @@ public sealed record IngestTransactionRequest(
     decimal Amount,
     string Currency,
     string MerchantName,
-    DateTime OccurredAtUtc);
+    DateTime OccurredAtUtc,
+    Guid? AccountHolderId = null);

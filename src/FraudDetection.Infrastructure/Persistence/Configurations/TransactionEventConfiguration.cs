@@ -1,3 +1,4 @@
+using FraudDetection.Domain.AccountHolders;
 using FraudDetection.Domain.Transactions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -19,6 +20,17 @@ public sealed class TransactionEventConfiguration : IEntityTypeConfiguration<Tra
         builder.Property(t => t.AccountId)
             .HasColumnType("UUID")
             .IsRequired();
+
+        // Unlike AccountId (a logical link — see AccountHolder's remarks for why it
+        // can't be a real FK), this one can be and is: AccountHolder.Id is a genuine
+        // primary key. Nullable because the holder isn't always known at ingestion.
+        builder.Property(t => t.AccountHolderId)
+            .HasColumnType("UUID");
+
+        builder.HasOne<AccountHolder>()
+            .WithMany()
+            .HasForeignKey(t => t.AccountHolderId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.Property(t => t.Category)
             .HasConversion<string>()
@@ -66,6 +78,7 @@ public sealed class TransactionEventConfiguration : IEntityTypeConfiguration<Tra
         builder.Ignore(t => t.DomainEvents);
 
         builder.HasIndex(t => t.AccountId);
+        builder.HasIndex(t => t.AccountHolderId);
         builder.HasIndex(t => t.OccurredAtUtc);
         builder.HasIndex(t => new { t.AccountId, t.OccurredAtUtc });
     }

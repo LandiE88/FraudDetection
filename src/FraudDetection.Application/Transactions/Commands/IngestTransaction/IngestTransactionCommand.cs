@@ -13,4 +13,5 @@ public sealed record IngestTransactionCommand(
     decimal Amount,
     string Currency,
     string MerchantName,
-    DateTime OccurredAtUtc);
+    DateTime OccurredAtUtc,
+    Guid? AccountHolderId = null);

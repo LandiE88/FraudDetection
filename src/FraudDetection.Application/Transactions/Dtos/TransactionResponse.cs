@@ -3,6 +3,7 @@ namespace FraudDetection.Application.Transactions.Dtos;
 public sealed record TransactionResponse(
     Guid Id,
     Guid AccountId,
+    Guid? AccountHolderId,
     string Category,
     decimal Amount,
     string Currency,

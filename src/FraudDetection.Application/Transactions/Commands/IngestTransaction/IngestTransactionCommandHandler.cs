@@ -1,6 +1,8 @@
 using FluentValidation;
+using FraudDetection.Application.Common.Exceptions;
 using FraudDetection.Application.Common.Messaging;
 using FraudDetection.Application.Transactions.Dtos;
+using FraudDetection.Domain.AccountHolders;
 using FraudDetection.Domain.Common;
 using FraudDetection.Domain.Fraud;
 using FraudDetection.Domain.Transactions;
@@ -16,6 +18,7 @@ public sealed class IngestTransactionCommandHandler : ICommandHandler<IngestTran
     private static readonly TimeSpan HistoryLookback = TimeSpan.FromHours(1);
 
     private readonly ITransactionEventRepository _transactionEventRepository;
+    private readonly IAccountHolderRepository _accountHolderRepository;
     private readonly IFraudRuleSettingsRepository _fraudRuleSettingsRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly FraudRuleEngine _fraudRuleEngine;
@@ -25,6 +28,7 @@ public sealed class IngestTransactionCommandHandler : ICommandHandler<IngestTran
 
     public IngestTransactionCommandHandler(
         ITransactionEventRepository transactionEventRepository,
+        IAccountHolderRepository accountHolderRepository,
         IFraudRuleSettingsRepository fraudRuleSettingsRepository,
         IUnitOfWork unitOfWork,
         FraudRuleEngine fraudRuleEngine,
@@ -33,6 +37,7 @@ public sealed class IngestTransactionCommandHandler : ICommandHandler<IngestTran
         ILogger<IngestTransactionCommandHandler> logger)
     {
         _transactionEventRepository = transactionEventRepository;
+        _accountHolderRepository = accountHolderRepository;
         _fraudRuleSettingsRepository = fraudRuleSettingsRepository;
         _unitOfWork = unitOfWork;
         _fraudRuleEngine = fraudRuleEngine;
@@ -56,20 +61,30 @@ public sealed class IngestTransactionCommandHandler : ICommandHandler<IngestTran
         var amount = Money.Create(request.Amount, request.Currency);
         var ingestedAtUtc = _clock.UtcNow;
 
+        // All three are independent reads, so fetch them concurrently rather than one
+        // after the other.
+        var historyTask = _transactionEventRepository.GetRecentByAccountAsync(
+            request.AccountId, request.OccurredAtUtc - HistoryLookback, cancellationToken);
+        var largeAmountThresholdsTask = _fraudRuleSettingsRepository.GetLargeAmountThresholdsAsync(cancellationToken);
+        var accountHolderTask = request.AccountHolderId.HasValue
+            ? _accountHolderRepository.GetByIdAsync(request.AccountHolderId.Value, cancellationToken)
+            : Task.FromResult<AccountHolder?>(null);
+
+        await Task.WhenAll(historyTask, largeAmountThresholdsTask, accountHolderTask);
+
+        if (request.AccountHolderId.HasValue && accountHolderTask.Result is null)
+        {
+            throw new NotFoundException(nameof(AccountHolder), request.AccountHolderId.Value);
+        }
+
         var transaction = TransactionEvent.Create(
             request.AccountId,
             request.Category,
             amount,
             request.MerchantName,
             request.OccurredAtUtc,
-            ingestedAtUtc);
-
-        // Both are independent reads needed only to build the evaluation context, so
-        // fetch them concurrently rather than one after the other.
-        var historyTask = _transactionEventRepository.GetRecentByAccountAsync(
-            request.AccountId, request.OccurredAtUtc - HistoryLookback, cancellationToken);
-        var largeAmountThresholdsTask = _fraudRuleSettingsRepository.GetLargeAmountThresholdsAsync(cancellationToken);
-        await Task.WhenAll(historyTask, largeAmountThresholdsTask);
+            ingestedAtUtc,
+            request.AccountHolderId);
 
         var settings = new FraudRuleSettings { LargeAmountThresholds = largeAmountThresholdsTask.Result };
         var context = new FraudRuleEvaluationContext(transaction, historyTask.Result, settings);

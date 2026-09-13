@@ -125,4 +125,68 @@ public class AccountHolderTests
         holder.LastName.Should().Be("Doe");
         holder.IdPassport.Should().Be("A1234567");
     }
+
+    [Fact]
+    public void Update_WithValidData_ReplacesEveryMutableFieldButNotIdOrAccountId()
+    {
+        var holder = CreateValid();
+        var originalId = holder.Id;
+        var originalAccountId = holder.AccountId;
+        var newEmail = EmailAddress.Create("john.smith@example.com");
+
+        holder.Update("John", "Smith", "B9876543", newEmail, new DateOnly(1985, 2, 10), Today);
+
+        holder.Id.Should().Be(originalId);
+        holder.AccountId.Should().Be(originalAccountId);
+        holder.FirstName.Should().Be("John");
+        holder.LastName.Should().Be("Smith");
+        holder.IdPassport.Should().Be("B9876543");
+        holder.Email.Should().Be(newEmail);
+        holder.DateOfBirth.Should().Be(new DateOnly(1985, 2, 10));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Update_WithBlankFirstName_Throws(string firstName)
+    {
+        var holder = CreateValid();
+
+        var act = () => holder.Update(firstName, "Doe", "A1234567", ValidEmail, new DateOnly(1990, 5, 20), Today);
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Update_WithDateOfBirthInTheFuture_Throws()
+    {
+        var holder = CreateValid();
+
+        var act = () => holder.Update("Jane", "Doe", "A1234567", ValidEmail, Today.AddDays(1), Today);
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Update_WithIdPassportOverMaxLength_Throws()
+    {
+        var holder = CreateValid();
+        var tooLong = new string('9', AccountHolder.IdPassportMaxLength + 1);
+
+        var act = () => holder.Update("Jane", "Doe", tooLong, ValidEmail, new DateOnly(1990, 5, 20), Today);
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Update_DoesNotMutateStateWhenValidationFails()
+    {
+        var holder = CreateValid();
+
+        var act = () => holder.Update("", "Smith", "B9876543", ValidEmail, new DateOnly(1985, 2, 10), Today);
+
+        act.Should().Throw<DomainException>();
+        holder.FirstName.Should().Be("Jane");
+        holder.LastName.Should().Be("Doe");
+    }
 }

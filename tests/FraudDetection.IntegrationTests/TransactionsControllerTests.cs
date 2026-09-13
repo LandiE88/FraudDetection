@@ -4,18 +4,23 @@ using FluentAssertions;
 using FraudDetection.Api.Contracts;
 using FraudDetection.Application.Common.Models;
 using FraudDetection.Application.Transactions.Dtos;
+using FraudDetection.Domain.AccountHolders;
 using FraudDetection.Domain.Transactions;
+using FraudDetection.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace FraudDetection.IntegrationTests;
 
 public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFactory>
 {
+    private readonly CustomWebApplicationFactory _factory;
     private readonly HttpClient _client;
 
     public TransactionsControllerTests(CustomWebApplicationFactory factory)
     {
+        _factory = factory;
         _client = factory.CreateClient();
     }
 
@@ -109,5 +114,47 @@ public class TransactionsControllerTests : IClassFixture<CustomWebApplicationFac
         var response = await _client.GetAsync("/health");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Post_WithKnownAccountHolderId_LinksTheTransactionToTheHolder()
+    {
+        var accountId = Guid.NewGuid();
+        var holder = await SeedAccountHolderAsync(accountId);
+
+        var request = new IngestTransactionRequest(
+            accountId, TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", DateTime.UtcNow, holder.Id);
+
+        var response = await _client.PostAsJsonAsync("/api/transactions", request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<TransactionResponse>();
+        body!.AccountHolderId.Should().Be(holder.Id);
+    }
+
+    [Fact]
+    public async Task Post_WithUnknownAccountHolderId_Returns404()
+    {
+        var request = new IngestTransactionRequest(
+            Guid.NewGuid(), TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", DateTime.UtcNow, Guid.NewGuid());
+
+        var response = await _client.PostAsJsonAsync("/api/transactions", request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    private async Task<AccountHolder> SeedAccountHolderAsync(Guid accountId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<FraudDetectionDbContext>();
+
+        var holder = AccountHolder.Create(
+            accountId, "Jane", "Doe", "A1234567", EmailAddress.Create("jane.doe@example.com"),
+            new DateOnly(1990, 5, 20), DateOnly.FromDateTime(DateTime.UtcNow));
+
+        dbContext.AccountHolders.Add(holder);
+        await dbContext.SaveChangesAsync();
+
+        return holder;
     }
 }
