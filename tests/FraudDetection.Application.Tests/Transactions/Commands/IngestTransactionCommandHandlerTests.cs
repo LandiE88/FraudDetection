@@ -1,6 +1,8 @@
 using FluentAssertions;
 using FluentValidation;
+using FraudDetection.Application.Common.Exceptions;
 using FraudDetection.Application.Transactions.Commands.IngestTransaction;
+using FraudDetection.Domain.AccountHolders;
 using FraudDetection.Domain.Common;
 using FraudDetection.Domain.Fraud;
 using FraudDetection.Domain.Fraud.Rules;
@@ -14,6 +16,7 @@ namespace FraudDetection.Application.Tests.Transactions.Commands;
 public class IngestTransactionCommandHandlerTests
 {
     private readonly Mock<ITransactionEventRepository> _repository = new();
+    private readonly Mock<IAccountHolderRepository> _accountHolderRepository = new();
     private readonly Mock<IFraudRuleSettingsRepository> _fraudRuleSettingsRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IClock> _clock = new();
@@ -32,12 +35,17 @@ public class IngestTransactionCommandHandlerTests
 
     private IngestTransactionCommandHandler CreateHandler(FraudRuleEngine? engine = null) => new(
         _repository.Object,
+        _accountHolderRepository.Object,
         _fraudRuleSettingsRepository.Object,
         _unitOfWork.Object,
         engine ?? new FraudRuleEngine(new IFraudRule[] { new LargeAmountRule() }),
         new IngestTransactionCommandValidator(),
         _clock.Object,
         NullLogger<IngestTransactionCommandHandler>.Instance);
+
+    private static AccountHolder CreateAccountHolder(Guid accountId) => AccountHolder.Create(
+        accountId, "Jane", "Doe", "A1234567", EmailAddress.Create("jane.doe@example.com"),
+        new DateOnly(1990, 5, 20), DateOnly.FromDateTime(FixedNow));
 
     [Fact]
     public async Task Handle_WithCleanTransaction_PersistsUnflaggedTransaction()
@@ -102,6 +110,58 @@ public class IngestTransactionCommandHandlerTests
 
         response.IsFlagged.Should().BeTrue();
         response.FraudFlags.Should().ContainSingle(f => f.RuleName == "LargeAmount");
+    }
+
+    [Fact]
+    public async Task Handle_WithoutAccountHolderId_LeavesItNullOnTheTransaction()
+    {
+        var handler = CreateHandler();
+        var command = new IngestTransactionCommand(
+            Guid.NewGuid(), TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", FixedNow);
+
+        var response = await handler.Handle(command, CancellationToken.None);
+
+        response.AccountHolderId.Should().BeNull();
+        _accountHolderRepository.Verify(
+            r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WithKnownAccountHolderId_SetsItOnTheTransaction()
+    {
+        var accountId = Guid.NewGuid();
+        var accountHolder = CreateAccountHolder(accountId);
+
+        _accountHolderRepository
+            .Setup(r => r.GetByIdAsync(accountHolder.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(accountHolder);
+
+        var handler = CreateHandler();
+        var command = new IngestTransactionCommand(
+            accountId, TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", FixedNow, accountHolder.Id);
+
+        var response = await handler.Handle(command, CancellationToken.None);
+
+        response.AccountHolderId.Should().Be(accountHolder.Id);
+    }
+
+    [Fact]
+    public async Task Handle_WithUnknownAccountHolderId_ThrowsNotFoundExceptionBeforeTouchingRepository()
+    {
+        var unknownAccountHolderId = Guid.NewGuid();
+
+        _accountHolderRepository
+            .Setup(r => r.GetByIdAsync(unknownAccountHolderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AccountHolder?)null);
+
+        var handler = CreateHandler();
+        var command = new IngestTransactionCommand(
+            Guid.NewGuid(), TransactionCategory.Purchase, 100m, "ZAR", "Corner Store", FixedNow, unknownAccountHolderId);
+
+        var act = async () => await handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        _repository.Verify(r => r.Add(It.IsAny<TransactionEvent>()), Times.Never);
     }
 
     [Fact]

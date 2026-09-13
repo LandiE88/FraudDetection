@@ -176,12 +176,18 @@ curl -X POST http://localhost:8080/api/transactions \
 ```
 
 `category` is one of `Purchase`, `Withdrawal`, `Deposit`, `Transfer`, `Refund`.
+`accountHolderId` is optional — if supplied, it must be the `id` of an existing
+account holder (see [`POST /api/account-holders`](#post-apiaccount-holders--register-an-account-holder)
+to create one, or [`GET /api/account-holders`](#get-apiaccount-holders--search-account-holders)
+to find one) or the request gets a `404 Not Found`. Unlike `accountId`, this one is a real
+database foreign key: `transaction_events.AccountHolderId → account_holders.Id`.
 Returns `201 Created` with the persisted transaction, including any fraud flags:
 
 ```json
 {
   "id": "b1f0c6b2-...",
   "accountId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "accountHolderId": null,
   "category": "Purchase",
   "amount": 25000,
   "currency": "ZAR",
@@ -224,6 +230,51 @@ curl "http://localhost:8080/api/transactions?onlyFlagged=true&page=1&pageSize=20
   "totalPages": 1
 }
 ```
+
+### `POST /api/account-holders` — register an account holder
+
+```bash
+curl -X POST http://localhost:8080/api/account-holders \
+  -H "Content-Type: application/json" \
+  -d '{
+        "accountId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "idPassport": "A1234567",
+        "email": "jane.doe@example.com",
+        "dateOfBirth": "1990-05-20"
+      }'
+```
+
+Returns `201 Created` with the new account holder (same shape as the search results
+below) and a `Location` header pointing at `GET /api/account-holders/{id}`.
+`email` is checked against the same regex `EmailAddress` enforces domain-side (see
+[Design notes](#design-notes)) — `400` if it doesn't look like an email, `422` if a
+well-formed request still violates a domain rule (e.g. a future date of birth).
+
+### `GET /api/account-holders/{id}` — fetch a single account holder
+
+Returns `200 OK` with the account holder, or `404 Not Found`.
+
+### `PUT /api/account-holders/{id}` — update an account holder
+
+```bash
+curl -X PUT http://localhost:8080/api/account-holders/b7e2... \
+  -H "Content-Type: application/json" \
+  -d '{
+        "firstName": "Janet",
+        "lastName": "Doe",
+        "idPassport": "A1234567",
+        "email": "janet.doe@example.com",
+        "dateOfBirth": "1990-05-20"
+      }'
+```
+
+Replaces every mutable field (name, id/passport, email, date of birth). **Does not
+accept `accountId`** — which (holder, account) row this is isn't something you edit in
+place; register a new holder instead if one genuinely needs linking to a different
+account. Returns `200 OK` with the updated holder, or `404 Not Found` if the id
+doesn't exist.
 
 ### `GET /api/account-holders` — search account holders
 
@@ -268,9 +319,6 @@ system (it's just a grouping id shared by many transaction events), and a foreig
 must target a unique/primary key, which `transaction_events.AccountId` isn't. Both
 tables index `AccountId` so filtering/joining on it stays cheap regardless.
 
-There is currently no endpoint to create an account holder — this API only searches
-existing records. Ask if you'd like a `POST /api/account-holders` added.
-
 ### `GET /health`
 
 Returns `200 OK` once the API can reach PostgreSQL — useful as a container/orchestrator
@@ -295,7 +343,7 @@ dotnet test FraudDetection.sln
 |---|---|---|
 | `FraudDetection.Domain.Tests` | Every fraud rule in isolation, `TransactionEvent`/`AccountHolder` invariants and domain-event raising, `Money`/`EmailAddress` value semantics, the rule engine. | None |
 | `FraudDetection.Application.Tests` | Command/query handlers against mocked repositories (Moq), FluentValidation validators. | None |
-| `FraudDetection.IntegrationTests` | The real API pipeline (`WebApplicationFactory`) against a real PostgreSQL (Testcontainers): ingestion, validation error shapes, 404s, filtering/paging, account holder search, and the history-dependent rules (velocity, duplicate detection) end to end. | Docker (for Testcontainers) |
+| `FraudDetection.IntegrationTests` | The real API pipeline (`WebApplicationFactory`) against a real PostgreSQL (Testcontainers): ingestion, validation error shapes, 404s, filtering/paging, account holder CRUD + search, linking a transaction to an account holder, and the history-dependent rules (velocity, duplicate detection) end to end. | Docker (for Testcontainers) |
 
 `docker compose up --build` also runs the Domain and Application suites automatically
 as part of building the image (see [Running with Docker](#running-with-docker-recommended)).
@@ -344,3 +392,24 @@ as part of building the image (see [Running with Docker](#running-with-docker-re
   `holder.Email.Value` in an `ILIKE` search) — that's a well-known EF Core limitation.
   An owned type's own properties translate normally, which is also why `Money` is
   mapped the same way on `TransactionEvent`.
+- **`TransactionEvent` links to `AccountHolder` two different ways, deliberately.**
+  `AccountId` is shared by both tables but isn't unique on either side, so it can only
+  ever be a logical link (see `AccountHolder`'s remarks). `AccountHolderId` is a
+  genuine, nullable foreign key to `AccountHolder.Id` (a real primary key), enforced
+  by Postgres and checked by `IngestTransactionCommandHandler` before a transaction is
+  created — an unknown `accountHolderId` fails fast with `404`, not a raw FK
+  violation. It's nullable, not required — the holder behind an account isn't always
+  known (or worth registering) at the moment a transaction is ingested, so a
+  transaction is still valid without one.
+- **`AccountHolder.Update` doesn't touch `AccountId`.** It only ever replaces the
+  mutable personal fields (name, id/passport, email, date of birth) — `AccountId`
+  defines which (holder, account) row this is, not something a `PUT` corrects in
+  place. If a holder genuinely needs linking to a different account, register a new
+  one instead. `Create` and `Update` share the same private validation
+  helpers (`RequireName`, `RequireIdPassport`, `RequireNotFutureDateOfBirth`) so the
+  two can never drift apart on what counts as valid.
+- **`EmailAddress.IsValid` exists so the API can give a friendly `400` up front**,
+  using the exact same regex `Create` enforces — the application layer's
+  `CreateAccountHolderCommandValidator`/`UpdateAccountHolderCommandValidator` call
+  `EmailAddress.IsValid` rather than duplicating the pattern, so there's one source of
+  truth for "what counts as a valid email" shared by validation and construction.

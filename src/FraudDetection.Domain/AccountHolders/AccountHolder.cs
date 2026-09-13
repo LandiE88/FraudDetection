@@ -63,32 +63,36 @@ public sealed class AccountHolder : AggregateRoot<Guid>
             throw new DomainException("Account id is required.");
         }
 
-        firstName = RequireName(firstName, nameof(firstName));
-        lastName = RequireName(lastName, nameof(lastName));
-
-        if (string.IsNullOrWhiteSpace(idPassport))
-        {
-            throw new DomainException("Id/passport number is required.");
-        }
-
-        if (idPassport.Trim().Length > IdPassportMaxLength)
-        {
-            throw new DomainException($"Id/passport number must be at most {IdPassportMaxLength} characters.");
-        }
-
-        if (dateOfBirth > today)
-        {
-            throw new DomainException("Date of birth cannot be in the future.");
-        }
-
         return new AccountHolder(
             Guid.NewGuid(),
             accountId,
-            firstName,
-            lastName,
-            idPassport.Trim(),
+            RequireName(firstName, nameof(firstName)),
+            RequireName(lastName, nameof(lastName)),
+            RequireIdPassport(idPassport),
             email,
-            dateOfBirth);
+            RequireNotFutureDateOfBirth(dateOfBirth, today));
+    }
+
+    /// <summary>
+    /// Replaces every mutable field (everything but the identity-defining
+    /// <see cref="AggregateRoot{TId}.Id"/> and <see cref="AccountId"/> — the latter
+    /// is which (holder, account) row this is, not something you "correct" in place;
+    /// re-ingest a new one instead if a holder actually needs linking to a different
+    /// account). Same invariants as <see cref="Create"/>.
+    /// </summary>
+    public void Update(
+        string firstName,
+        string lastName,
+        string idPassport,
+        EmailAddress email,
+        DateOnly dateOfBirth,
+        DateOnly today)
+    {
+        FirstName = RequireName(firstName, nameof(firstName));
+        LastName = RequireName(lastName, nameof(lastName));
+        IdPassport = RequireIdPassport(idPassport);
+        Email = email;
+        DateOfBirth = RequireNotFutureDateOfBirth(dateOfBirth, today);
     }
 
     private static string RequireName(string name, string fieldName)
@@ -106,5 +110,32 @@ public sealed class AccountHolder : AggregateRoot<Guid>
         }
 
         return trimmed;
+    }
+
+    private static string RequireIdPassport(string idPassport)
+    {
+        if (string.IsNullOrWhiteSpace(idPassport))
+        {
+            throw new DomainException("Id/passport number is required.");
+        }
+
+        var trimmed = idPassport.Trim();
+
+        if (trimmed.Length > IdPassportMaxLength)
+        {
+            throw new DomainException($"Id/passport number must be at most {IdPassportMaxLength} characters.");
+        }
+
+        return trimmed;
+    }
+
+    private static DateOnly RequireNotFutureDateOfBirth(DateOnly dateOfBirth, DateOnly today)
+    {
+        if (dateOfBirth > today)
+        {
+            throw new DomainException("Date of birth cannot be in the future.");
+        }
+
+        return dateOfBirth;
     }
 }

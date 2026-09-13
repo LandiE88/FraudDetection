@@ -1,6 +1,9 @@
 using System.Reflection;
 using FluentValidation;
+using FraudDetection.Application.AccountHolders.Commands.CreateAccountHolder;
+using FraudDetection.Application.AccountHolders.Commands.UpdateAccountHolder;
 using FraudDetection.Application.AccountHolders.Dtos;
+using FraudDetection.Application.AccountHolders.Queries.GetAccountHolderById;
 using FraudDetection.Application.AccountHolders.Queries.SearchAccountHolders;
 using FraudDetection.Application.Common.Events;
 using FraudDetection.Application.Common.Messaging;
@@ -38,6 +41,9 @@ public static class DependencyInjection
         services.AddScoped<IQueryHandler<GetTransactionByIdQuery, TransactionResponse>, GetTransactionByIdQueryHandler>();
         services.AddScoped<IQueryHandler<GetTransactionsQuery, PagedResult<TransactionResponse>>, GetTransactionsQueryHandler>();
         services.AddScoped<IQueryHandler<SearchAccountHoldersQuery, PagedResult<AccountHolderResponse>>, SearchAccountHoldersQueryHandler>();
+        services.AddScoped<IQueryHandler<GetAccountHolderByIdQuery, AccountHolderResponse>, GetAccountHolderByIdQueryHandler>();
+        services.AddScoped<ICommandHandler<CreateAccountHolderCommand, AccountHolderResponse>, CreateAccountHolderCommandHandler>();
+        services.AddScoped<ICommandHandler<UpdateAccountHolderCommand, AccountHolderResponse>, UpdateAccountHolderCommandHandler>();
     }
 
     private static void AddDomainEventDispatch(IServiceCollection services)

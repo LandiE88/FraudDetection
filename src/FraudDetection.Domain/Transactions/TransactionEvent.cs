@@ -16,6 +16,16 @@ public sealed class TransactionEvent : AggregateRoot<Guid>
     private readonly List<FraudFlag> _fraudFlags = new();
 
     public Guid AccountId { get; private set; }
+
+    /// <summary>
+    /// Which <c>AccountHolder</c> this transaction belongs to, if known — a real
+    /// foreign key to <c>account_holders.Id</c> (unlike <see cref="AccountId"/>,
+    /// which is only ever a logical link since it isn't unique). Nullable because the
+    /// holder behind an account isn't always known at ingestion time; a transaction
+    /// is still valid without one.
+    /// </summary>
+    public Guid? AccountHolderId { get; private set; }
+
     public TransactionCategory Category { get; private set; }
     public Money Amount { get; private set; } = default!;
     public string MerchantName { get; private set; } = default!;
@@ -40,6 +50,7 @@ public sealed class TransactionEvent : AggregateRoot<Guid>
     private TransactionEvent(
         Guid id,
         Guid accountId,
+        Guid? accountHolderId,
         TransactionCategory category,
         Money amount,
         string merchantName,
@@ -47,6 +58,7 @@ public sealed class TransactionEvent : AggregateRoot<Guid>
         DateTime ingestedAtUtc) : base(id)
     {
         AccountId = accountId;
+        AccountHolderId = accountHolderId;
         Category = category;
         Amount = amount;
         MerchantName = merchantName;
@@ -60,11 +72,17 @@ public sealed class TransactionEvent : AggregateRoot<Guid>
         Money amount,
         string merchantName,
         DateTime occurredAtUtc,
-        DateTime ingestedAtUtc)
+        DateTime ingestedAtUtc,
+        Guid? accountHolderId = null)
     {
         if (accountId == Guid.Empty)
         {
             throw new DomainException("Account id is required.");
+        }
+
+        if (accountHolderId == Guid.Empty)
+        {
+            throw new DomainException("Account holder id, when provided, cannot be empty.");
         }
 
         if (string.IsNullOrWhiteSpace(merchantName))
@@ -80,6 +98,7 @@ public sealed class TransactionEvent : AggregateRoot<Guid>
         return new TransactionEvent(
             Guid.NewGuid(),
             accountId,
+            accountHolderId,
             category,
             amount,
             merchantName.Trim(),

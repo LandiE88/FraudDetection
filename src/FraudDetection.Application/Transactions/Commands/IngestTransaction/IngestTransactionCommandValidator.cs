@@ -24,5 +24,10 @@ public sealed class IngestTransactionCommandValidator : AbstractValidator<Ingest
         RuleFor(x => x.OccurredAtUtc)
             .LessThanOrEqualTo(_ => DateTime.UtcNow.AddMinutes(5))
             .WithMessage("OccurredAtUtc cannot be in the future.");
+
+        RuleFor(x => x.AccountHolderId)
+            .NotEqual(Guid.Empty)
+            .When(x => x.AccountHolderId.HasValue)
+            .WithMessage("AccountHolderId, when provided, cannot be empty.");
     }
 }

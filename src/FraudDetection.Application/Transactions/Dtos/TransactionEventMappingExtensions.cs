@@ -7,6 +7,7 @@ public static class TransactionEventMappingExtensions
     public static TransactionResponse ToResponse(this TransactionEvent transaction) => new(
         transaction.Id,
         transaction.AccountId,
+        transaction.AccountHolderId,
         transaction.Category.ToString(),
         transaction.Amount.Amount,
         transaction.Amount.Currency,

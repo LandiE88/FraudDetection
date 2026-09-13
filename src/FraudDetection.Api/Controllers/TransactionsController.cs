@@ -29,13 +29,19 @@ public sealed class TransactionsController : ControllerBase
         _searchHandler = searchHandler;
     }
 
-    /// <summary>Ingests a categorized transaction event and evaluates it against every configured fraud rule.</summary>
+    /// <summary>
+    /// Ingests a categorized transaction event and evaluates it against every
+    /// configured fraud rule. <c>accountHolderId</c> is optional, but if supplied it
+    /// must reference an existing account holder.
+    /// </summary>
     /// <response code="201">The transaction was recorded (whether or not it was flagged).</response>
     /// <response code="400">The request failed validation.</response>
+    /// <response code="404"><c>accountHolderId</c> was supplied but no such account holder exists.</response>
     /// <response code="422">The request violates a domain invariant.</response>
     [HttpPost]
     [ProducesResponseType(typeof(TransactionResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<TransactionResponse>> Ingest(
         [FromBody] IngestTransactionRequest request, CancellationToken cancellationToken)
@@ -46,7 +52,8 @@ public sealed class TransactionsController : ControllerBase
             request.Amount,
             request.Currency,
             request.MerchantName,
-            request.OccurredAtUtc);
+            request.OccurredAtUtc,
+            request.AccountHolderId);
 
         var result = await _ingestHandler.Handle(command, cancellationToken);
 

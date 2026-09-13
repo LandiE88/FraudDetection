@@ -48,6 +48,16 @@ public sealed class EmailAddress : ValueObject
         return new EmailAddress(trimmed);
     }
 
+    /// <summary>
+    /// Checks the same format/length rules as <see cref="Create"/> without throwing —
+    /// lets the application layer give a friendly 400 for a malformed email up front,
+    /// using the exact same single source of truth <see cref="Create"/> enforces.
+    /// </summary>
+    public static bool IsValid(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Trim().Length <= MaxLength &&
+        Pattern.IsMatch(value.Trim());
+
     protected override IEnumerable<object?> GetEqualityComponents()
     {
         yield return Value.ToUpperInvariant();
