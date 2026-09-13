@@ -48,10 +48,6 @@ public sealed class CreateTransactionCommandHandler : ICommandHandler<CreateTran
 
     public async Task<TransactionResponse> Handle(CreateTransactionCommand request, CancellationToken cancellationToken = default)
     {
-        // With no pipeline to run this automatically, every handler validates its own
-        // request up front. The API's global exception handler still turns the
-        // FluentValidation.ValidationException this throws into a 400 with per-field
-        // errors, exactly as it did when a MediatR behavior threw it.
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
